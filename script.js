@@ -1175,7 +1175,7 @@
             <textarea id="new-comment-text" rows="3" placeholder="Escriu una crítica constructiva, suggeriment tècnic o referència útil (mínim 20 caràcters per obtenir punts)..." required></textarea>
             <div class="composer-footer">
               <span style="font-size:12px;color:var(--text-secondary);">
-                ${isOwner ? "Ets l'autor/a d'aquest projecte (pots valorar la utilitat dels comentaris d'1 a 5 estrelles)." : "Guanya +5 punts per aportar feedback constructiu (+3 extra si té pocs comentaris)."}
+                ${isOwner ? "Ets l'autor/a d'aquest projecte (pots valorar la utilitat dels comentaris d'1 a 5 estrelles)." : "Primer comentari: +15 pts · segon: +10 pts · tercer: +7 pts · a partir del quart: +5 pts."}
               </span>
               <button type="submit" class="btn-primary">Publicar feedback</button>
             </div>
@@ -2628,6 +2628,7 @@
     document.getElementById("auth-start-view").classList.remove("hidden");
     document.getElementById("auth-login-view").classList.add("hidden");
     document.getElementById("auth-register-view").classList.add("hidden");
+    document.getElementById("auth-recovery-view").classList.add("hidden");
     document.querySelectorAll("#auth-login-form input").forEach((input) => {
       if (input.type === "checkbox") input.checked = false;
       else input.value = "";
@@ -2842,30 +2843,72 @@
     });
 
     document.getElementById("auth-forgot-password").addEventListener("click", () => {
-      document.getElementById("recovery-email").value = document.getElementById("auth-login-email").value;
-      openModal("modal-password-recovery");
+      document.getElementById("auth-login-view").classList.add("hidden");
+      document.getElementById("auth-recovery-view").classList.remove("hidden");
+      document.getElementById("auth-recovery-form").classList.remove("hidden");
+      document.getElementById("auth-reset-form").classList.add("hidden");
+      document.getElementById("auth-recovery-email").value = document.getElementById("auth-login-email").value;
     });
 
-    document.getElementById("password-recovery-form").addEventListener("submit", async (event) => {
+    document.getElementById("auth-recovery-form").addEventListener("submit", (event) => {
       event.preventDefault();
-      const email = document.getElementById("recovery-email").value.trim().toLowerCase();
-      const password = document.getElementById("recovery-password").value;
-      const error = document.getElementById("recovery-error");
+      const email = document.getElementById("auth-recovery-email").value.trim().toLowerCase();
+      const error = document.getElementById("auth-recovery-error");
       const student = state.students.find((item) => item.email.toLowerCase() === email);
-      if (!student) {
+      if (!email || !student) {
         error.textContent = "No existeix cap compte amb aquest correu.";
         error.classList.remove("hidden");
         return;
       }
+      error.classList.add("hidden");
+
+      const resetToken = "reset-" + Date.now();
+      localStorage.setItem("eram_password_reset", JSON.stringify({ email, token: resetToken }));
+      const appUrl = window.location.href.split("#")[0].split("?")[0];
+      const resetUrl = `${appUrl}?reset=${encodeURIComponent(resetToken)}#password-reset`;
+      const subject = encodeURIComponent("ERAM — Recuperació de contrasenya");
+      const body = encodeURIComponent(
+        `Hola,\n\nPer restablir la contrasenya de la plataforma ERAM obre aquest enllaç:\n${resetUrl}\n\nSi no has sol·licitat aquest canvi, ignora aquest correu.`
+      );
+      window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+
+      document.getElementById("auth-recovery-form").classList.add("hidden");
+      document.getElementById("auth-reset-form").classList.remove("hidden");
+      showToast("S'ha preparat el correu de recuperació al teu gestor de correu.");
+    });
+
+    document.getElementById("auth-reset-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const password = document.getElementById("auth-reset-password").value;
+      const confirmPassword = document.getElementById("auth-reset-password-confirm").value;
+      const error = document.getElementById("auth-reset-error");
       if (password.length < 8) {
         error.textContent = "La contrasenya ha de tenir almenys 8 caràcters.";
         error.classList.remove("hidden");
         return;
       }
+      if (password !== confirmPassword) {
+        error.textContent = "Les contrasenyes no coincideixen.";
+        error.classList.remove("hidden");
+        return;
+      }
+      const resetData = JSON.parse(localStorage.getItem("eram_password_reset") || "null");
+      if (!resetData?.email) {
+        error.textContent = "La sol·licitud de recuperació ha caducat.";
+        error.classList.remove("hidden");
+        return;
+      }
+      const student = state.students.find((item) => item.email.toLowerCase() === resetData.email);
+      if (!student) {
+        error.textContent = "No s'ha pogut identificar el compte.";
+        error.classList.remove("hidden");
+        return;
+      }
       student.passwordHash = await hashPassword(password);
       saveState();
-      closeModal("modal-password-recovery");
-      showToast("Contrasenya restablerta correctament.");
+      localStorage.removeItem("eram_password_reset");
+      showAuthPage();
+      showToast("Contrasenya canviada correctament.");
     });
   }
 
@@ -2876,6 +2919,14 @@
   bindAuthPageEvents();
   if (!hasSavedSession) {
     showAuthPage();
+    const resetToken = new URLSearchParams(window.location.search).get("reset");
+    const resetData = JSON.parse(localStorage.getItem("eram_password_reset") || "null");
+    if (resetToken && resetData?.token === resetToken) {
+      document.getElementById("auth-start-view").classList.add("hidden");
+      document.getElementById("auth-recovery-view").classList.remove("hidden");
+      document.getElementById("auth-recovery-form").classList.add("hidden");
+      document.getElementById("auth-reset-form").classList.remove("hidden");
+    }
   } else {
     state.currentUserId = savedSession;
     document.body.classList.add("authenticated");

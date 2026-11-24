@@ -49,6 +49,35 @@
       </form>
     </div>
 
+    <div id="auth-recovery-view" class="auth-card auth-mode-card hidden">
+      <button type="button" class="auth-back-btn" data-auth-back>← Tornar</button>
+      <div class="auth-heading">
+        <p class="auth-eyebrow">ERAM Creative Network</p>
+        <h1>Recupera la contrasenya</h1>
+        <p>Introdueix el teu correu institucional i obrirem el teu gestor de correu.</p>
+      </div>
+      <form id="auth-recovery-form" class="auth-login-form" autocomplete="off">
+        <div class="form-group">
+          <label for="auth-recovery-email">Correu institucional *</label>
+          <input type="email" id="auth-recovery-email" required autocomplete="email" placeholder="nom.cognoms@campus.eram.cat" />
+        </div>
+        <div class="form-error hidden" id="auth-recovery-error"></div>
+        <button type="submit" class="auth-submit">Enviar correu de recuperació</button>
+      </form>
+      <form id="auth-reset-form" class="auth-login-form hidden" autocomplete="off">
+        <div class="form-group">
+          <label for="auth-reset-password">Contrasenya nova *</label>
+          <input type="password" id="auth-reset-password" required minlength="8" autocomplete="new-password" />
+        </div>
+        <div class="form-group">
+          <label for="auth-reset-password-confirm">Confirma la contrasenya nova *</label>
+          <input type="password" id="auth-reset-password-confirm" required minlength="8" autocomplete="new-password" />
+        </div>
+        <div class="form-error hidden" id="auth-reset-error"></div>
+        <button type="submit" class="auth-submit">Canviar contrasenya</button>
+      </form>
+    </div>
+
     <div id="auth-register-view" class="auth-card auth-mode-card hidden">
       <button type="button" class="auth-back-btn" data-auth-back>← Tornar</button>
       <div class="auth-heading">
@@ -882,31 +911,6 @@
         <button type="button" class="modal-close-btn" data-close-modal="modal-subject" aria-label="Tancar">&times;</button>
       </div>
       <div class="modal-form" id="subject-content"></div>
-    </div>
-  </div>
-
-  <!-- MODAL: PASSWORD RECOVERY -->
-  <div class="modal-backdrop hidden" id="modal-password-recovery" role="dialog" aria-modal="true" aria-labelledby="modal-recovery-title">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h2 id="modal-recovery-title">Recuperar contrasenya</h2>
-        <button type="button" class="modal-close-btn" data-close-modal="modal-password-recovery" aria-label="Tancar">&times;</button>
-      </div>
-      <form id="password-recovery-form" class="modal-form">
-        <div class="form-group">
-          <label for="recovery-email">Correu institucional *</label>
-          <input type="email" id="recovery-email" required autocomplete="email" />
-        </div>
-        <div class="form-group">
-          <label for="recovery-password">Contrasenya nova *</label>
-          <input type="password" id="recovery-password" required minlength="8" autocomplete="new-password" />
-        </div>
-        <div class="form-error hidden" id="recovery-error"></div>
-        <div class="modal-actions">
-          <button type="button" class="btn-secondary" data-close-modal="modal-password-recovery">Cancel·lar</button>
-          <button type="submit" class="btn-primary">Restablir contrasenya</button>
-        </div>
-      </form>
     </div>
   </div>
 
