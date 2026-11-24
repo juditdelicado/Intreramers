@@ -2294,8 +2294,9 @@
           <div class="profile-avatar-editor">
             <img src="${escapeHtml(student.avatar)}" alt="${escapeHtml(student.name)}" class="profile-hero-avatar" id="profile-avatar-preview" />
             ${student.id === state.currentUserId ? `
-              <button type="button" class="profile-avatar-upload" id="profile-edit-pencil" title="Editar perfil" aria-label="Editar perfil">
-                <span>Editar</span>
+              <input type="file" id="profile-avatar-upload" accept="image/*" hidden />
+              <button type="button" class="profile-avatar-upload" id="profile-edit-pencil" title="Canviar fotografia" aria-label="Canviar fotografia">
+                <span>Canviar fotografia</span>
               </button>
             ` : ""}
           </div>
@@ -2314,9 +2315,6 @@
                   <div class="profile-subject-tags">
                     ${studentSubjects.map((tag) => `<button type="button" class="pill-tag subject-tag" data-subject="${escapeHtml(tag)}" style="border:0;cursor:pointer;">${escapeHtml(tag)}</button>`).join("")}
                   </div>
-                  ${student.id === state.currentUserId ? `
-                    <button type="button" class="profile-subject-edit-btn" id="open-profile-subject-edit">Editar assignatures</button>
-                  ` : ""}
                 </div>
               </details>
             ` : ""}
@@ -2433,8 +2431,21 @@
     };
 
     container.querySelector("#open-profile-edit")?.addEventListener("click", openProfileEditor);
-    container.querySelector("#profile-edit-pencil")?.addEventListener("click", openProfileEditor);
-    container.querySelector("#open-profile-subject-edit")?.addEventListener("click", openProfileEditor);
+    const avatarPicker = container.querySelector("#profile-avatar-upload");
+    container.querySelector("#profile-edit-pencil")?.addEventListener("click", () => avatarPicker?.click());
+    avatarPicker?.addEventListener("change", (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        student.avatar = reader.result;
+        saveState();
+        updateHeaderChrome();
+        renderProfileView();
+        showToast("Fotografia de perfil actualitzada.");
+      };
+      reader.readAsDataURL(file);
+    });
   }
 
   function renderLeaderboardView() {
