@@ -789,32 +789,29 @@ body:not(.authenticated) .app-main {
   top: calc(100% + 10px);
   right: 0;
   width: 260px;
-  background: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.65);
   border: 1px solid rgba(255, 255, 255, 0.92);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
   border-radius: 16px;
   padding: 8px;
   box-shadow: 0 24px 64px rgba(22, 22, 22, 0.20), inset 0 1px 0 rgba(255, 255, 255, 0.94);
   z-index: 200;
 }
 
+
 .popover-underlay {
   position: fixed;
-  z-index: 190;
-  border-radius: 0 0 12px 12px;
-  background: rgba(22, 22, 22, 0.025);
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
+  z-index: 99;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   pointer-events: none;
 }
 
 .profile-popover {
   width: 280px;
-  background: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.65);
   border: 1px solid rgba(22, 22, 22, 0.12);
-  backdrop-filter: blur(18px) saturate(115%);
-  -webkit-backdrop-filter: blur(18px) saturate(115%);
   box-shadow:
     0 28px 70px rgba(22, 22, 22, 0.30),
     0 8px 24px rgba(22, 22, 22, 0.17),

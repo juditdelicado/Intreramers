@@ -2637,9 +2637,9 @@
     }
     const rect = openMenu.getBoundingClientRect();
     underlay.style.left = `${rect.left}px`;
-    underlay.style.top = `${rect.bottom - 1}px`;
+    underlay.style.top = `${rect.top}px`;
     underlay.style.width = `${rect.width}px`;
-    underlay.style.height = `${Math.min(window.innerWidth <= 680 ? 140 : 180, Math.max(0, window.innerHeight - rect.bottom))}px`;
+    underlay.style.height = `${rect.height}px`;
   }
 
   function showToast(message) {
