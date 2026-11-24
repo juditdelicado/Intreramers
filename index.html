@@ -543,12 +543,61 @@
       </div>
       <form id="publish-project-form" class="modal-form" novalidate>
         <input type="hidden" id="proj-edit-id" />
-        <div class="form-section-title">1. Informació bàsica i briefing</div>
-        <div class="form-grid-2">
+        <div class="project-wizard-progress" aria-live="polite">
+          <span id="proj-wizard-step-label">Pas 1 de 5 · Nom</span>
+          <div class="project-wizard-progress-track" aria-hidden="true">
+            <span data-wizard-progress="1" class="is-active"></span>
+            <span data-wizard-progress="2"></span>
+            <span data-wizard-progress="3"></span>
+            <span data-wizard-progress="4"></span>
+            <span data-wizard-progress="5"></span>
+          </div>
+        </div>
+        <div class="form-error hidden" id="proj-form-error" role="alert"></div>
+
+        <section class="project-wizard-step" data-project-step="1">
+          <div class="form-section-title">1. Nom del projecte</div>
           <div class="form-group">
-            <label for="proj-title">Títol del projecte *</label>
+            <label for="proj-title">Nom del projecte *</label>
             <input type="text" id="proj-title" required placeholder="Ex: Curtmetratge 'Ecos del Ter'" />
           </div>
+        </section>
+
+        <section class="project-wizard-step" data-project-step="2" hidden>
+          <div class="form-section-title">2. Imatge de portada</div>
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label for="proj-cover">URL de la imatge</label>
+              <input type="url" id="proj-cover" placeholder="https://images.unsplash.com/..." />
+            </div>
+            <div class="form-group">
+              <label for="proj-cover-file">O selecciona una imatge del teu ordinador</label>
+              <input type="file" id="proj-cover-file" accept="image/*" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="proj-aspect">Proporció del marc</label>
+            <select id="proj-aspect">
+              <option value="portrait">3:4 — Vertical</option>
+              <option value="wide">16:9 — Panoràmica</option>
+              <option value="square">1:1 — Quadrada</option>
+            </select>
+          </div>
+          <div id="proj-cropper" class="project-image-cropper hidden">
+            <canvas id="proj-crop-canvas" class="project-crop-canvas" tabindex="0" role="img" aria-label="Canvas per enquadrar la portada. Arrossega la imatge per ajustar-la." aria-describedby="proj-crop-help"></canvas>
+            <div class="project-crop-controls">
+              <label for="proj-crop-zoom">Amplia la imatge</label>
+              <input id="proj-crop-zoom" type="range" min="1" max="4" step="0.01" value="1" />
+              <button type="button" id="proj-crop-reset" class="text-link-btn">Restableix l’enquadrament</button>
+              <span id="proj-crop-help">Arrossega la imatge dins del marc per ajustar-ne l’enquadrament.</span>
+            </div>
+            <div id="proj-crop-error" class="form-error hidden" role="status"></div>
+            <button type="button" id="proj-cover-remove" class="text-link-btn">Eliminar imatge</button>
+          </div>
+        </section>
+
+        <section class="project-wizard-step" data-project-step="3" hidden>
+          <div class="form-section-title">3. Descripció i detalls</div>
           <div class="form-group">
             <label for="proj-category">Categoria *</label>
             <select id="proj-category" required>
@@ -560,147 +609,116 @@
               <option value="Realitat immersiva">Realitat immersiva</option>
             </select>
           </div>
-        </div>
-
-        <div class="form-group">
-          <label for="proj-description">Descripció del projecte *</label>
-          <textarea id="proj-description" rows="2" required placeholder="Explica breument de què tracta el projecte..."></textarea>
-        </div>
-
-        <div class="form-group">
-          <label for="proj-briefing">Briefing creatiu i objectius *</label>
-          <textarea id="proj-briefing" rows="2" required placeholder="Quines referències visuals, estil o objectius comunicatius segueix?"></textarea>
-        </div>
-
-        <div class="form-grid-2">
           <div class="form-group">
-            <label for="proj-cover">URL imatge de portada (o tria mostra)</label>
-            <input type="url" id="proj-cover" placeholder="https://images.unsplash.com/..." />
+            <label for="proj-description">Descripció del projecte *</label>
+            <textarea id="proj-description" rows="2" required placeholder="Explica breument de què tracta el projecte..."></textarea>
           </div>
           <div class="form-group">
-            <label for="proj-cover-file">O selecciona una imatge del teu ordinador</label>
-            <input type="file" id="proj-cover-file" accept="image/*" />
+            <label for="proj-briefing">Briefing creatiu i objectius *</label>
+            <textarea id="proj-briefing" rows="2" required placeholder="Quines referències visuals, estil o objectius comunicatius segueix?"></textarea>
           </div>
-        </div>
-        <div class="project-image-preview-wrap">
-          <img id="proj-cover-preview" alt="Previsualització de la portada" class="hidden" />
-          <button type="button" id="proj-cover-remove" class="text-link-btn hidden">Eliminar imatge</button>
-        </div>
-        <div class="form-grid-2">
-          <div class="form-group">
-            <label for="proj-aspect">Proporció de la imatge</label>
-            <select id="proj-aspect">
-              <option value="portrait">3:4 — Vertical</option>
-              <option value="wide">16:9 — Panoràmica</option>
-              <option value="square">1:1 — Quadrada</option>
+
+        </section>
+
+        <section class="project-wizard-step" data-project-step="4" hidden>
+          <div class="form-section-title">4. Context acadèmic ERAM</div>
+          <div class="form-grid-3">
+            <div class="form-group">
+              <label for="proj-subject">Assignatura *</label>
+              <input type="text" id="proj-subject" required placeholder="Ex: Direcció Cinematogràfica" />
+            </div>
+            <div class="form-group">
+              <label for="proj-professor">Professor/a *</label>
+              <input type="text" id="proj-professor" required placeholder="Ex: Dr. Marc Ferrer" />
+            </div>
+            <div class="form-group">
+              <label for="proj-year">Curs acadèmic *</label>
+              <select id="proj-year" required>
+                <option value="1r Curs">1r Curs</option>
+                <option value="2n Curs">2n Curs</option>
+                <option value="3r Curs" selected>3r Curs</option>
+                <option value="4t Curs (TFG)">4t Curs (TFG)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-grid-3">
+            <div class="form-group">
+              <label for="proj-deadline">Data límit d'entrega *</label>
+              <input type="date" id="proj-deadline" required />
+            </div>
+            <div class="form-group">
+              <label for="proj-stage">Fase de desenvolupament *</label>
+              <select id="proj-stage" required>
+                <option value="Initial idea">1. Idea inicial</option>
+                <option value="Research and references">2. Recerca i referències</option>
+                <option value="Pre-production">3. Preproducció</option>
+                <option value="Production">4. Producció</option>
+                <option value="Post-production" selected>5. Postproducció</option>
+                <option value="Final review">6. Revisió final</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="proj-team-type">Tipus de treball</label>
+              <select id="proj-team-type">
+                <option value="individual">Individual (1 persona)</option>
+                <option value="group">En grup</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group" id="proj-participants-wrap">
+            <label for="proj-participants">Participants del grup (separats per comes)</label>
+            <input type="text" id="proj-participants" placeholder="Ex: Laia Puig, Pol Vila" />
+            <label for="proj-registered-participant">Afegir participant registrat</label>
+            <select id="proj-registered-participant">
+              <option value="">Selecciona un estudiant registrat</option>
             </select>
           </div>
-          <div class="form-group">
-            <label for="proj-image-position">Enquadrament</label>
-            <select id="proj-image-position">
-              <option value="center">Centrat</option>
-              <option value="top">Superior</option>
-              <option value="bottom">Inferior</option>
-              <option value="left">Esquerra</option>
-              <option value="right">Dreta</option>
-            </select>
-          </div>
-        </div>
 
-        <div class="form-section-title">2. Context acadèmic ERAM</div>
-        <div class="form-grid-3">
-          <div class="form-group">
-            <label for="proj-subject">Assignatura *</label>
-            <input type="text" id="proj-subject" required placeholder="Ex: Direcció Cinematogràfica" />
+          <div class="form-grid-2">
+            <label class="checkbox-inline">
+              <input type="checkbox" id="proj-seeking-collaborator" />
+              <span>Busquem una persona que vulgui col·laborar</span>
+            </label>
+            <div class="form-group" id="proj-collab-role-wrap" hidden>
+              <label for="proj-collab-role">Rol o ajuda necessària</label>
+              <select id="proj-collab-role">
+                <option value="Dissenyador/a gràfic/a">Dissenyador/a gràfic/a</option>
+                <option value="Fotògraf/a">Fotògraf/a</option>
+                <option value="Programador/a">Programador/a</option>
+                <option value="Editor/a de vídeo">Editor/a de vídeo</option>
+                <option value="Altres perfils">Altres perfils</option>
+              </select>
+            </div>
           </div>
-          <div class="form-group">
-            <label for="proj-professor">Professor/a *</label>
-            <input type="text" id="proj-professor" required placeholder="Ex: Dr. Marc Ferrer" />
-          </div>
-          <div class="form-group">
-            <label for="proj-year">Curs acadèmic *</label>
-            <select id="proj-year" required>
-              <option value="1r Curs">1r Curs</option>
-              <option value="2n Curs">2n Curs</option>
-              <option value="3r Curs" selected>3r Curs</option>
-              <option value="4t Curs (TFG)">4t Curs (TFG)</option>
-            </select>
-          </div>
-        </div>
 
-        <div class="form-grid-3">
-          <div class="form-group">
-            <label for="proj-deadline">Data límit d'entrega *</label>
-            <input type="date" id="proj-deadline" required />
-          </div>
-          <div class="form-group">
-            <label for="proj-stage">Fase de desenvolupament *</label>
-            <select id="proj-stage" required>
-              <option value="Initial idea">1. Idea inicial</option>
-              <option value="Research and references">2. Recerca i referències</option>
-              <option value="Pre-production">3. Preproducció</option>
-              <option value="Production">4. Producció</option>
-              <option value="Post-production" selected>5. Postproducció</option>
-              <option value="Final review">6. Revisió final</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="proj-team-type">Tipus de treball</label>
-            <select id="proj-team-type">
-              <option value="individual">Individual (1 persona)</option>
-              <option value="group">En grup</option>
-            </select>
-          </div>
-        </div>
+        </section>
 
-        <div class="form-group" id="proj-participants-wrap">
-          <label for="proj-participants">Participants del grup (separats per comes)</label>
-          <input type="text" id="proj-participants" placeholder="Ex: Laia Puig, Pol Vila" />
-          <label for="proj-registered-participant">Afegir participant registrat</label>
-          <select id="proj-registered-participant">
-            <option value="">Selecciona un estudiant registrat</option>
-          </select>
-        </div>
-
-        <div class="form-grid-2">
-          <label class="checkbox-inline">
-            <input type="checkbox" id="proj-seeking-collaborator" />
-            <span>Busquem una persona que vulgui col·laborar</span>
-          </label>
-          <div class="form-group" id="proj-collab-role-wrap" hidden>
-            <label for="proj-collab-role">Rol o ajuda necessària</label>
-            <select id="proj-collab-role">
-              <option value="Dissenyador/a gràfic/a">Dissenyador/a gràfic/a</option>
-              <option value="Fotògraf/a">Fotògraf/a</option>
-              <option value="Programador/a">Programador/a</option>
-              <option value="Editor/a de vídeo">Editor/a de vídeo</option>
-              <option value="Altres perfils">Altres perfils</option>
-            </select>
+        <section class="project-wizard-step" data-project-step="5" hidden>
+          <div class="form-section-title">5. Multimèdia i feedback</div>
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label for="proj-media-url">Enllaç multimèdia (Vimeo, YouTube, Drive, PDF)</label>
+              <input type="url" id="proj-media-url" placeholder="https://vimeo.com/..." />
+            </div>
+            <div class="form-group">
+              <label for="proj-feedback-type">Tipus de feedback buscat *</label>
+              <input type="text" id="proj-feedback-type" required placeholder="Ex: Ritme de muntatge, etalonatge i mescla sonora" />
+            </div>
           </div>
-        </div>
 
-        <div class="form-section-title">3. Multimèdia i feedback sol·licitat</div>
-        <div class="form-grid-2">
           <div class="form-group">
-            <label for="proj-media-url">Enllaç multimèdia (Vimeo, YouTube, Drive, PDF)</label>
-            <input type="url" id="proj-media-url" placeholder="https://vimeo.com/..." />
+            <label for="proj-questions">Preguntes concretes per als companys</label>
+            <textarea id="proj-questions" rows="2" placeholder="Ex: S'entén el gir narratiu al minut 2? Què milloraríeu de la tipografia?"></textarea>
           </div>
-          <div class="form-group">
-            <label for="proj-feedback-type">Tipus de feedback buscat *</label>
-            <input type="text" id="proj-feedback-type" required placeholder="Ex: Ritme de muntatge, etalonatge i mescla sonora" />
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label for="proj-questions">Preguntes concretes per als companys</label>
-          <textarea id="proj-questions" rows="2" placeholder="Ex: S'entén el gir narratiu al minut 2? Què milloraríeu de la tipografia?"></textarea>
-        </div>
-
-        <div class="form-error hidden" id="proj-form-error"></div>
+        </section>
 
         <div class="modal-actions">
           <button type="button" class="btn-secondary" data-close-modal="modal-publish-project">Cancel·lar</button>
-          <button type="submit" class="btn-primary">Publicar projecte (+10 pts)</button>
+          <button type="button" id="proj-wizard-back" class="btn-secondary hidden">Enrere</button>
+          <button type="button" id="proj-wizard-next" class="btn-primary">Següent</button>
+          <button type="submit" id="proj-wizard-submit" class="btn-primary hidden">Publicar projecte (+10 pts)</button>
         </div>
       </form>
     </div>

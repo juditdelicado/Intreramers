@@ -760,6 +760,10 @@
     return structuredClone(INITIAL_STATE);
   }
 
+  function isProjectCoverFramed(project) {
+    return project.coverFramed === true || /^data:image\//i.test(project.cover || "");
+  }
+
   function saveState() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -772,6 +776,168 @@
   // 2. UI FILTERS & ROUTING STATE
   // ========================================================================
   let uploadedProjectCover = "";
+  const projectCropSizes = {
+    portrait: { width: 720, height: 960 },
+    wide: { width: 1280, height: 720 },
+    square: { width: 960, height: 960 }
+  };
+  const projectCrop = {
+    image: null,
+    source: "",
+    zoom: 1,
+    offsetX: 0,
+    offsetY: 0,
+    dirty: false,
+    framed: false,
+    loading: false,
+    pendingFile: null,
+    dragging: false,
+    lastX: 0,
+    lastY: 0
+  };
+  let projectWizardStep = 1;
+
+  function setProjectWizardStep(step) {
+    const labels = [
+      "Pas 1 de 5 · Nom",
+      "Pas 2 de 5 · Imatge",
+      "Pas 3 de 5 · Descripció",
+      "Pas 4 de 5 · Context acadèmic",
+      "Pas 5 de 5 · Multimèdia i feedback"
+    ];
+    const lastStep = labels.length;
+    projectWizardStep = Math.max(1, Math.min(lastStep, step));
+    document.querySelectorAll("[data-project-step]").forEach((section) => {
+      section.hidden = Number(section.dataset.projectStep) !== projectWizardStep;
+    });
+    document.querySelectorAll("[data-wizard-progress]").forEach((indicator) => {
+      const isActive = Number(indicator.dataset.wizardProgress) <= projectWizardStep;
+      indicator.classList.toggle("is-active", isActive);
+      if (Number(indicator.dataset.wizardProgress) === projectWizardStep) {
+        indicator.setAttribute("aria-current", "step");
+      } else {
+        indicator.removeAttribute("aria-current");
+      }
+    });
+    document.getElementById("proj-wizard-step-label").textContent = labels[projectWizardStep - 1];
+    document.getElementById("proj-wizard-back").classList.toggle("hidden", projectWizardStep === 1);
+    document.getElementById("proj-wizard-next").classList.toggle("hidden", projectWizardStep === lastStep);
+    document.getElementById("proj-wizard-submit").classList.toggle("hidden", projectWizardStep !== lastStep);
+    document.getElementById("proj-form-error").classList.add("hidden");
+    const modalCard = document.querySelector("#modal-publish-project .modal-card");
+    if (modalCard) modalCard.scrollTop = 0;
+  }
+
+  function advanceProjectWizard() {
+    const error = document.getElementById("proj-form-error");
+    if (projectWizardStep === 1 && !document.getElementById("proj-title").value.trim()) {
+      error.textContent = "Escriu el nom del projecte per continuar.";
+      error.classList.remove("hidden");
+      document.getElementById("proj-title").focus();
+      return;
+    }
+
+    if (projectWizardStep === 2) {
+      if (projectCrop.source && !projectCrop.image) {
+        error.textContent = projectCrop.loading
+          ? "Espera que la imatge s’acabi de carregar."
+          : "No s’ha pogut carregar la imatge. Comprova l’URL o selecciona un altre fitxer.";
+        error.classList.remove("hidden");
+        return;
+      }
+      if (projectCrop.image && projectCrop.dirty) {
+        try {
+          uploadedProjectCover = document.getElementById("proj-crop-canvas").toDataURL("image/jpeg", 0.9);
+          projectCrop.dirty = false;
+          projectCrop.framed = true;
+        } catch (error) {
+          console.error("No s’ha pogut exportar l’enquadrament de la portada.", error);
+          document.getElementById("proj-form-error").textContent = error.name === "SecurityError"
+            ? "Aquest servidor no permet retallar imatges d’aquesta URL. Selecciona la imatge des del teu ordinador."
+            : "No s’ha pogut processar la imatge. Torna-ho a provar.";
+          document.getElementById("proj-form-error").classList.remove("hidden");
+          return;
+        }
+      }
+    }
+
+    setProjectWizardStep(projectWizardStep + 1);
+  }
+
+  function showProjectCropError(message) {
+    const error = document.getElementById("proj-crop-error");
+    if (!error) return;
+    error.textContent = message;
+    error.classList.toggle("hidden", !message);
+  }
+
+  function drawProjectCrop() {
+    const canvas = document.getElementById("proj-crop-canvas");
+    const aspect = document.getElementById("proj-aspect")?.value || "portrait";
+    const size = projectCropSizes[aspect] || projectCropSizes.portrait;
+    if (!canvas || !projectCrop.image) return;
+
+    canvas.width = size.width;
+    canvas.height = size.height;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    context.fillStyle = "#161616";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    const image = projectCrop.image;
+    const baseScale = Math.max(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
+    const scale = baseScale * projectCrop.zoom;
+    const drawnWidth = image.naturalWidth * scale;
+    const drawnHeight = image.naturalHeight * scale;
+    const maxOffsetX = Math.max(0, (drawnWidth - canvas.width) / 2);
+    const maxOffsetY = Math.max(0, (drawnHeight - canvas.height) / 2);
+    projectCrop.offsetX = Math.max(-maxOffsetX, Math.min(maxOffsetX, projectCrop.offsetX));
+    projectCrop.offsetY = Math.max(-maxOffsetY, Math.min(maxOffsetY, projectCrop.offsetY));
+
+    context.drawImage(
+      image,
+      (canvas.width - drawnWidth) / 2 + projectCrop.offsetX,
+      (canvas.height - drawnHeight) / 2 + projectCrop.offsetY,
+      drawnWidth,
+      drawnHeight
+    );
+  }
+
+  function setProjectCropSource(source, { dirty = true, framed = false } = {}) {
+    const cropper = document.getElementById("proj-cropper");
+    const zoomControl = document.getElementById("proj-crop-zoom");
+    projectCrop.image = null;
+    projectCrop.source = source;
+    projectCrop.zoom = 1;
+    projectCrop.offsetX = 0;
+    projectCrop.offsetY = 0;
+    projectCrop.dirty = dirty;
+    projectCrop.framed = framed;
+    projectCrop.loading = Boolean(source);
+    projectCrop.pendingFile = null;
+    if (zoomControl) zoomControl.value = "1";
+    if (cropper) cropper.classList.toggle("hidden", !source);
+    showProjectCropError("");
+
+    if (!source) return;
+
+    const image = new Image();
+    if (!source.startsWith("data:") && !source.startsWith("blob:")) {
+      image.crossOrigin = "anonymous";
+    }
+    image.onload = () => {
+      if (projectCrop.source !== source) return;
+      projectCrop.image = image;
+      projectCrop.loading = false;
+      drawProjectCrop();
+    };
+    image.onerror = () => {
+      if (projectCrop.source !== source) return;
+      projectCrop.loading = false;
+      showProjectCropError("No s’ha pogut carregar la imatge. Comprova l’URL o selecciona un fitxer del teu ordinador.");
+    };
+    image.src = source;
+  }
 
   const ui = {
     route: "discover",
@@ -1101,7 +1267,7 @@
           daysLeft < 0 ? "Entregat" : daysLeft === 0 ? "Avui" : `Entrega en ${daysLeft}d`;
 
         return `
-          <article class="masonry-card ${proj.aspect || "span-portrait"}" tabindex="0" role="button" aria-label="Obrir projecte ${escapeHtml(proj.title)}" data-open-project="${proj.id}">
+          <article class="masonry-card ${proj.aspect || "span-portrait"} ${isProjectCoverFramed(proj) ? "framed-cover" : ""}" tabindex="0" role="button" aria-label="Obrir projecte ${escapeHtml(proj.title)}" data-open-project="${proj.id}">
             <img src="${escapeHtml(proj.cover)}" alt="${escapeHtml(proj.title)}" loading="lazy" />
             <div class="card-overlay">
               <div class="overlay-top">
@@ -1169,7 +1335,7 @@
 
         <div class="detail-layout">
           <div>
-            <div class="detail-media-stage">
+            <div class="detail-media-stage ${isProjectCoverFramed(proj) ? "framed-cover" : ""}">
               <img src="${escapeHtml(proj.cover)}" alt="${escapeHtml(proj.title)}" />
             </div>
             ${
@@ -1840,7 +2006,7 @@
           ${studentProjects
             .map(
               (proj) => `
-              <article class="masonry-card ${proj.aspect || "span-portrait"}" data-open-project="${proj.id}">
+              <article class="masonry-card ${proj.aspect || "span-portrait"} ${isProjectCoverFramed(proj) ? "framed-cover" : ""}" data-open-project="${proj.id}">
                 <img src="${escapeHtml(proj.cover)}" alt="${escapeHtml(proj.title)}" loading="lazy" />
                 <div class="card-overlay">
                   <div class="overlay-top">
@@ -2054,6 +2220,14 @@
     document.getElementById("proj-edit-id").value = proj.id;
     document.getElementById("proj-title").value = proj.title;
     document.getElementById("proj-category").value = proj.category;
+    const cropAspect = {
+      "span-tall": "portrait",
+      "span-portrait": "portrait",
+      "span-square": "square",
+      "span-landscape": "wide",
+      "span-wide": "wide"
+    };
+    document.getElementById("proj-aspect").value = cropAspect[proj.aspect] || "portrait";
     document.getElementById("proj-description").value = proj.description;
     document.getElementById("proj-briefing").value = proj.briefing;
     document.getElementById("proj-cover").value = proj.cover;
@@ -2071,11 +2245,9 @@
     document.getElementById("proj-collab-role-wrap").hidden = !proj.seekingCollaborator;
     document.getElementById("proj-collab-role").value = proj.collaboratorRole || "Dissenyador/a gràfic/a";
     uploadedProjectCover = proj.cover || "";
-    if (proj.cover) {
-      document.getElementById("proj-cover-preview").src = proj.cover;
-      document.getElementById("proj-cover-preview").classList.remove("hidden");
-      document.getElementById("proj-cover-remove").classList.remove("hidden");
-    }
+    document.getElementById("proj-cover-file").value = "";
+    setProjectCropSource(proj.cover || "", { dirty: false, framed: isProjectCoverFramed(proj) });
+    setProjectWizardStep(1);
     openModal("modal-publish-project");
   }
 
@@ -2269,8 +2441,8 @@
         document.getElementById("proj-edit-id").value = "";
         document.getElementById("proj-deadline").value = daysFromNow(10);
         uploadedProjectCover = "";
-        document.getElementById("proj-cover-preview").classList.add("hidden");
-        document.getElementById("proj-cover-remove").classList.add("hidden");
+        setProjectCropSource("");
+        setProjectWizardStep(1);
         document.getElementById("proj-registered-participant").innerHTML =
           '<option value="">Selecciona un estudiant registrat</option>' +
           state.students.map((student) => `<option value="${escapeHtml(student.name)}">${escapeHtml(student.name)}</option>`).join("");
@@ -2434,37 +2606,102 @@
       const file = event.target.files[0];
       if (!file) return;
       const reader = new FileReader();
+      projectCrop.image = null;
+      projectCrop.source = "pending-file";
+      projectCrop.loading = true;
+      projectCrop.pendingFile = file;
+      projectCrop.dirty = true;
+      document.getElementById("proj-cropper").classList.remove("hidden");
+      document.getElementById("proj-cover").value = "";
+      uploadedProjectCover = "";
+      showProjectCropError("Carregant la imatge…");
       reader.onload = () => {
+        if (projectCrop.pendingFile !== file) return;
         uploadedProjectCover = reader.result;
-        const preview = document.getElementById("proj-cover-preview");
-        preview.src = uploadedProjectCover;
-        preview.classList.remove("hidden");
-        document.getElementById("proj-cover-remove").classList.remove("hidden");
-        document.getElementById("proj-cover").value = "";
+        setProjectCropSource(uploadedProjectCover);
+      };
+      reader.onerror = () => {
+        if (projectCrop.pendingFile !== file) return;
+        projectCrop.pendingFile = null;
+        projectCrop.loading = false;
+        showProjectCropError("No s’ha pogut llegir el fitxer. Torna-ho a provar.");
       };
       reader.readAsDataURL(file);
     });
 
-    document.getElementById("proj-cover")?.addEventListener("input", (event) => {
-      if (!event.target.value.trim()) return;
+    document.getElementById("proj-cover")?.addEventListener("change", (event) => {
       uploadedProjectCover = event.target.value.trim();
-      const preview = document.getElementById("proj-cover-preview");
-      preview.src = uploadedProjectCover;
-      preview.classList.remove("hidden");
-      document.getElementById("proj-cover-remove").classList.remove("hidden");
+      setProjectCropSource(uploadedProjectCover);
+    });
+
+    document.getElementById("proj-aspect")?.addEventListener("change", () => {
+      if (!projectCrop.image) return;
+      projectCrop.dirty = true;
+      projectCrop.offsetX = 0;
+      projectCrop.offsetY = 0;
+      drawProjectCrop();
+    });
+
+    const cropCanvas = document.getElementById("proj-crop-canvas");
+    cropCanvas?.addEventListener("pointerdown", (event) => {
+      if (!projectCrop.image) return;
+      event.preventDefault();
+      projectCrop.dragging = true;
+      projectCrop.lastX = event.clientX;
+      projectCrop.lastY = event.clientY;
+      cropCanvas.setPointerCapture(event.pointerId);
+    });
+    cropCanvas?.addEventListener("pointermove", (event) => {
+      if (!projectCrop.dragging || !projectCrop.image) return;
+      const bounds = cropCanvas.getBoundingClientRect();
+      projectCrop.offsetX += (event.clientX - projectCrop.lastX) * (cropCanvas.width / bounds.width);
+      projectCrop.offsetY += (event.clientY - projectCrop.lastY) * (cropCanvas.height / bounds.height);
+      projectCrop.lastX = event.clientX;
+      projectCrop.lastY = event.clientY;
+      projectCrop.dirty = true;
+      drawProjectCrop();
+    });
+    const stopCropDrag = () => {
+      projectCrop.dragging = false;
+    };
+    cropCanvas?.addEventListener("pointerup", stopCropDrag);
+    cropCanvas?.addEventListener("pointercancel", stopCropDrag);
+    cropCanvas?.addEventListener("lostpointercapture", stopCropDrag);
+
+    document.getElementById("proj-crop-zoom")?.addEventListener("input", (event) => {
+      projectCrop.zoom = Number(event.target.value) || 1;
+      projectCrop.dirty = true;
+      drawProjectCrop();
+    });
+
+    document.getElementById("proj-crop-reset")?.addEventListener("click", () => {
+      projectCrop.zoom = 1;
+      projectCrop.offsetX = 0;
+      projectCrop.offsetY = 0;
+      projectCrop.dirty = true;
+      document.getElementById("proj-crop-zoom").value = "1";
+      drawProjectCrop();
     });
 
     document.getElementById("proj-cover-remove")?.addEventListener("click", () => {
       uploadedProjectCover = "";
       document.getElementById("proj-cover").value = "";
       document.getElementById("proj-cover-file").value = "";
-      document.getElementById("proj-cover-preview").classList.add("hidden");
-      document.getElementById("proj-cover-remove").classList.add("hidden");
+      setProjectCropSource("");
+    });
+
+    document.getElementById("proj-wizard-next").addEventListener("click", advanceProjectWizard);
+    document.getElementById("proj-wizard-back").addEventListener("click", () => {
+      setProjectWizardStep(projectWizardStep - 1);
     });
 
     // Publish / Edit Project Form Submission
     document.getElementById("publish-project-form").addEventListener("submit", (e) => {
       e.preventDefault();
+      if (projectWizardStep < 5) {
+        advanceProjectWizard();
+        return;
+      }
       const errBox = document.getElementById("proj-form-error");
       const title = document.getElementById("proj-title").value.trim();
       const description = document.getElementById("proj-description").value.trim();
@@ -2517,6 +2754,29 @@
       const participants = participantsRaw
         ? participantsRaw.split(",").map((s) => s.trim()).filter(Boolean)
         : [currentUser.name];
+      if (projectCrop.source && !projectCrop.image) {
+        errBox.textContent = projectCrop.loading
+          ? "Espera que la imatge s’acabi de carregar."
+          : "No s’ha pogut carregar la imatge. Comprova l’URL o selecciona un altre fitxer.";
+        errBox.classList.remove("hidden");
+        return;
+      }
+
+      let croppedCover = "";
+      if (projectCrop.image && projectCrop.dirty) {
+        try {
+          croppedCover = document.getElementById("proj-crop-canvas").toDataURL("image/jpeg", 0.9);
+          projectCrop.framed = true;
+        } catch (error) {
+          console.error("No s’ha pogut exportar l’enquadrament de la portada.", error);
+          errBox.textContent = error.name === "SecurityError"
+            ? "Aquest servidor no permet retallar imatges d’aquesta URL. Selecciona la imatge des del teu ordinador."
+            : "No s’ha pogut processar la imatge. Torna-ho a provar.";
+          errBox.classList.remove("hidden");
+          return;
+        }
+      }
+      const projectCover = croppedCover || uploadedProjectCover || coverInput;
 
       if (editId) {
         const existing = state.projects.find((p) => p.id === editId);
@@ -2528,7 +2788,8 @@
             aspect,
             description,
             briefing,
-            cover: uploadedProjectCover || coverInput || existing.cover,
+            cover: projectCover || existing.cover,
+            coverFramed: projectCover ? projectCrop.framed : isProjectCoverFramed(existing),
             subject,
             professor,
             year: document.getElementById("proj-year").value,
@@ -2562,7 +2823,8 @@
         title,
         category,
         aspect,
-        cover: uploadedProjectCover || coverInput || defaultCovers[category],
+        cover: projectCover || defaultCovers[category],
+        coverFramed: projectCrop.framed,
         description,
         briefing,
         subject,
