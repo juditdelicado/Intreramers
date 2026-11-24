@@ -74,6 +74,20 @@
     "Tecnologies multimèdia II"
   ];
 
+  const SUBJECT_GROUPS = [
+    { label: "1r Curs", subjects: STUDY_SUBJECTS["1r Curs"] },
+    { label: "2n Curs", subjects: STUDY_SUBJECTS["2n Curs"] },
+    {
+      label: "3r Curs",
+      subjects: STUDY_SUBJECTS["3r Curs"].filter((subject) => subject !== "Assignatures optatives")
+    },
+    {
+      label: "4t Curs (TFG)",
+      subjects: STUDY_SUBJECTS["4t Curs (TFG)"].filter((subject) => subject !== "Assignatures optatives")
+    },
+    { label: "Optatives", subjects: ["Assignatures optatives", ...OPTIONAL_SUBJECTS] }
+  ];
+
   const ALL_STUDY_SUBJECTS = [
     ...new Set([
       ...Object.values(STUDY_SUBJECTS).flat(),
@@ -2264,6 +2278,7 @@
     const studentProjects = state.projects.filter((p) =>
       p.ownerId === student.id && (!p.archived || student.id === state.currentUserId)
     );
+    const studentSubjects = student.interests || [];
 
     const nextProgress = tier.next
       ? Math.min(100, Math.round(((student.points - tier.min) / (tier.next - tier.min)) * 100))
@@ -2292,9 +2307,17 @@
             </div>
             <p style="margin:4px 0 8px;color:var(--text-secondary);">${escapeHtml(student.year)} · ${escapeHtml(student.email)}</p>
             <p style="margin:0 0 10px;font-size:13.5px;">${escapeHtml(student.bio || "")}</p>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;">
-              ${(student.interests || []).map((tag) => `<button type="button" class="pill-tag subject-tag" data-subject="${escapeHtml(tag)}" style="border:0;cursor:pointer;">${escapeHtml(tag)}</button>`).join("")}
-            </div>
+            ${studentSubjects.length ? `
+              <details class="profile-subjects-dropdown">
+                <summary>Assignatures seleccionades (${studentSubjects.length})</summary>
+                <div class="profile-subject-tags">
+                  ${studentSubjects.map((tag) => `<button type="button" class="pill-tag subject-tag" data-subject="${escapeHtml(tag)}" style="border:0;cursor:pointer;">${escapeHtml(tag)}</button>`).join("")}
+                </div>
+                ${student.id === state.currentUserId ? `
+                  <button type="button" class="profile-subject-edit-btn" id="open-profile-subject-edit">Editar assignatures</button>
+                ` : ""}
+              </details>
+            ` : ""}
             ${student.id === state.currentUserId ? `
               <div class="profile-edit-action">
                 <button type="button" class="profile-edit-link" id="open-profile-edit">Editar perfil</button>
@@ -2394,11 +2417,22 @@
       document.getElementById("edit-profile-avatar-color").value = student.avatarColor || "#8f7cf6";
       document.getElementById("edit-profile-password").value = "";
       document.getElementById("edit-profile-password-confirm").value = "";
+      document.getElementById("edit-profile-subject-list").innerHTML = (student.interests || student.subjects || [])
+        .map((subject) => `
+          <span class="edit-profile-subject-item" data-edit-profile-subject="${escapeHtml(subject)}">
+            <span>${escapeHtml(subject)}</span>
+            <button type="button" data-remove-profile-subject aria-label="Elimina ${escapeHtml(subject)}">&times;</button>
+          </span>
+        `).join("");
+      const subjectInput = document.getElementById("edit-profile-subject-input");
+      subjectInput.value = "";
+      subjectInput.dispatchEvent(new Event("input"));
       openModal("modal-edit-profile");
     };
 
     container.querySelector("#open-profile-edit")?.addEventListener("click", openProfileEditor);
     container.querySelector("#profile-edit-pencil")?.addEventListener("click", openProfileEditor);
+    container.querySelector("#open-profile-subject-edit")?.addEventListener("click", openProfileEditor);
   }
 
   function renderLeaderboardView() {
@@ -2589,7 +2623,6 @@
 
   function closeAllPopovers() {
     document.querySelectorAll(".popover-menu").forEach((m) => m.classList.add("hidden"));
-    document.body.classList.remove("profile-menu-open");
   }
 
   function showToast(message) {
@@ -2618,6 +2651,67 @@
 
     const editProfileForm = document.getElementById("edit-profile-form");
     if (editProfileForm) {
+      const subjectList = document.getElementById("edit-profile-subject-list");
+      const subjectInput = document.getElementById("edit-profile-subject-input");
+      const availableSubjects = document.getElementById("edit-profile-subject-options");
+      const renderAvailableSubjects = () => {
+        const query = subjectInput.value.trim().toLowerCase();
+        const selected = new Set([...subjectList.querySelectorAll("[data-edit-profile-subject]")]
+          .map((item) => item.dataset.editProfileSubject.toLowerCase()));
+        const matches = SUBJECT_GROUPS.map((group) => ({
+          label: group.label,
+          subjects: group.subjects.filter((subject) =>
+            !selected.has(subject.toLowerCase()) && subject.toLowerCase().includes(query)
+          )
+        })).filter((group) => group.subjects.length);
+        availableSubjects.innerHTML = matches.length
+          ? matches.map((group) => `
+            <section class="edit-profile-subject-group">
+              <h3 class="edit-profile-subject-group-title">${escapeHtml(group.label)}</h3>
+              <div class="edit-profile-subject-group-list">
+                ${group.subjects.map((subject) => `
+                  <button type="button" class="edit-profile-subject-option" data-add-profile-subject="${escapeHtml(subject)}">
+                    ${escapeHtml(subject)}
+                  </button>
+                `).join("")}
+              </div>
+            </section>
+          `).join("")
+          : `<p class="edit-profile-subject-empty">${query ? "No s'han trobat assignatures disponibles." : "Ja has seleccionat totes les assignatures."}</p>`;
+      };
+      const addSubject = (subject) => {
+        if (!ALL_STUDY_SUBJECTS.includes(subject)) return;
+        const alreadySelected = [...subjectList.querySelectorAll("[data-edit-profile-subject]")]
+          .some((item) => item.dataset.editProfileSubject.toLowerCase() === subject.toLowerCase());
+        if (alreadySelected) return;
+        const item = document.createElement("span");
+        item.className = "edit-profile-subject-item";
+        item.dataset.editProfileSubject = subject;
+        const label = document.createElement("span");
+        label.textContent = subject;
+        const removeButton = document.createElement("button");
+        removeButton.type = "button";
+        removeButton.dataset.removeProfileSubject = "";
+        removeButton.setAttribute("aria-label", `Elimina ${subject}`);
+        removeButton.textContent = "×";
+        item.append(label, removeButton);
+        subjectList.append(item);
+      };
+
+      subjectInput.addEventListener("input", renderAvailableSubjects);
+      availableSubjects.addEventListener("click", (event) => {
+        const option = event.target.closest("[data-add-profile-subject]");
+        if (!option) return;
+        addSubject(option.dataset.addProfileSubject);
+        renderAvailableSubjects();
+      });
+      subjectList.addEventListener("click", (event) => {
+        const removeButton = event.target.closest("[data-remove-profile-subject]");
+        if (!removeButton) return;
+        removeButton.closest("[data-edit-profile-subject]")?.remove();
+        renderAvailableSubjects();
+      });
+
       const avatarInput = document.getElementById("edit-profile-avatar");
       avatarInput.addEventListener("change", (event) => {
         const file = event.target.files[0];
@@ -2663,6 +2757,8 @@
         const email = document.getElementById("edit-profile-email").value.trim().toLowerCase();
         const password = document.getElementById("edit-profile-password").value;
         const passwordConfirm = document.getElementById("edit-profile-password-confirm").value;
+        const subjects = [...subjectList.querySelectorAll("[data-edit-profile-subject]")]
+          .map((item) => item.dataset.editProfileSubject);
         const error = document.getElementById("edit-profile-error");
         if (!name || !surname || !email) {
           error.textContent = "Completa el nom, els cognoms i el correu.";
@@ -2679,6 +2775,8 @@
         }
         student.name = `${name} ${surname}`.trim();
         student.email = email;
+        student.interests = subjects;
+        student.subjects = [...subjects];
         student.avatarColor = document.getElementById("edit-profile-avatar-color").value;
         if (student.avatar?.startsWith("data:image/png")) {
           student.avatar = makeInitialAvatar(student.name, student.avatarColor);
@@ -2734,9 +2832,6 @@
         closeAllPopovers();
         if (wasHidden) {
           menu.classList.remove("hidden");
-          if (menuId === "profile-dropdown") {
-            document.body.classList.add("profile-menu-open");
-          }
         }
       });
     };

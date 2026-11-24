@@ -800,30 +800,14 @@ body:not(.authenticated) .app-main {
 
 .profile-popover {
   width: 280px;
-  background: rgba(255, 255, 255, 0.68);
-  border: 1px solid rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(22, 22, 22, 0.12);
   backdrop-filter: blur(18px) saturate(115%);
   -webkit-backdrop-filter: blur(18px) saturate(115%);
   box-shadow:
-    0 28px 70px rgba(22, 22, 22, 0.22),
-    0 8px 24px rgba(22, 22, 22, 0.10),
-    inset 0 1px 0 rgba(255, 255, 255, 1);
-}
-
-.profile-menu-open::before {
-  content: "";
-  position: fixed;
-  top: 74px;
-  right: 32px;
-  width: 300px;
-  height: 220px;
-  z-index: 90;
-  border-radius: 0 0 18px 18px;
-  background: rgba(22, 22, 22, 0.04);
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
-  pointer-events: none;
-  transition: opacity 180ms ease;
+    0 28px 70px rgba(22, 22, 22, 0.30),
+    0 8px 24px rgba(22, 22, 22, 0.17),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
 }
 
 .popover-wide {
@@ -2272,6 +2256,136 @@ body:not(.authenticated) .app-main {
   object-fit: cover;
 }
 
+.profile-subjects-dropdown {
+  margin-top: 10px;
+}
+
+.profile-subjects-dropdown summary {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.74);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.profile-subjects-dropdown summary::after {
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 8px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  content: "";
+  transform: rotate(45deg);
+  transition: transform var(--transition-fast);
+}
+
+.profile-subjects-dropdown[open] summary::after {
+  margin-top: 3px;
+  transform: rotate(225deg);
+}
+
+.profile-subjects-dropdown summary::-webkit-details-marker {
+  display: none;
+}
+
+.profile-subject-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.profile-subject-edit-btn {
+  margin-top: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-decoration: underline;
+}
+
+.edit-profile-subject-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.edit-profile-subject-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px 5px 11px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-pill);
+  background: var(--bg-subtle);
+  font-size: 12px;
+}
+
+.edit-profile-subject-item button {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--bg-surface-hover);
+  line-height: 1;
+}
+
+.edit-profile-subject-options {
+  max-height: 180px;
+  margin-top: 8px;
+  padding: 8px;
+  overflow-y: auto;
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.edit-profile-subject-group + .edit-profile-subject-group {
+  margin-top: 12px;
+}
+
+.edit-profile-subject-group-title {
+  margin: 0 0 6px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.edit-profile-subject-group-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.edit-profile-subject-option {
+  padding: 7px 9px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--bg-subtle);
+  text-align: left;
+  font-size: 12px;
+}
+
+.edit-profile-subject-option:hover,
+.edit-profile-subject-option:focus-visible {
+  background: var(--bg-surface-hover);
+}
+
+.edit-profile-subject-empty {
+  margin: 0;
+  padding: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 .profile-avatar-editor {
   position: relative;
   width: 84px;
@@ -3012,11 +3126,6 @@ body:not(.authenticated) .app-main {
     flex: 1;
     justify-content: space-around;
     height: 40px;
-  }
-
-  .profile-menu-open::before {
-    right: 16px;
-    width: 280px;
   }
 
   .nav-label-mobile {
