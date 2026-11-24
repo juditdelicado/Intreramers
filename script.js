@@ -333,12 +333,12 @@
     projects: [
       {
         id: "proj-1",
-        title: "Ecos del Ter — Curtmetratge Documental",
+        title: "Curtmetratge documental",
         category: "Audiovisuals",
         aspect: "span-tall",
         cover: "https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=900&q=80",
-        description: "Peça documental observacional sobre els antics molins industrials a la vora del riu Ter i la memòria sonora dels seus treballadors.",
-        briefing: "Estètica de 16mm amb llum natural freda, plans fixos llargs i paisatge sonor immersiu enregistrat in situ.",
+        description: "Curtmetratge documental d'observació sobre la vida quotidiana d'un barri, rodat amb llum natural i so ambient.",
+        briefing: "Plans fixos llargs, entrevistes curtes i paisatge sonor enregistrat in situ.",
         subject: "Direcció Cinematogràfica",
         professor: "Dr. Marc Ferrer",
         year: "3r Curs",
@@ -350,17 +350,17 @@
         ownerId: "stu-1",
         status: "In progress",
         mediaUrl: "https://vimeo.com/76979871",
-        feedbackType: "Ritme del primer muntatge (rough cut) i transicions sonores",
-        questions: "El pròleg de 90 segons manté la tensió abans de la primera entrevista?"
+        feedbackType: "Ritme del primer muntatge i transicions sonores",
+        questions: "L'inici manté l'interès abans de la primera entrevista?"
       },
       {
         id: "proj-2",
-        title: "Tipografia Cinètica — Festival Temporada Alta",
+        title: "Cartell tipogràfic",
         category: "Disseny gràfic",
         aspect: "span-portrait",
-        cover: "https://images.unsplash.com/photo-1561070791-2526d30994b5?auto=format&fit=crop&w=900&q=80",
-        description: "Sistema d'identitat visual modular i cartelleria en moviment per a la secció d'arts escèniques contemporànies.",
-        briefing: "Contrast tipogràfic suís combinat amb deformacions reactives al so de l'escenari.",
+        cover: "cartell tipografic.jpg",
+        description: "Cartell tipogràfic per a un festival d'arts escèniques, basat en el contrast de tipografies i una paleta reduïda.",
+        briefing: "Jerarquia clara, graella modular i lectura ràpida a distància.",
         subject: "Disseny Editorial i Tipografia",
         professor: "Dra. Anna Rovira",
         year: "2n Curs",
@@ -372,17 +372,17 @@
         ownerId: "stu-3",
         status: "In progress",
         mediaUrl: "https://drive.google.com",
-        feedbackType: "Llegibilitat a distància i jerarquia de la graella",
-        questions: "Funciona millor la versió monocroma o amb accent vermell?"
+        feedbackType: "Llegibilitat i jerarquia visual",
+        questions: "Funciona millor la versió en blanc i negre o amb un color d'accent?"
       },
       {
         id: "proj-3",
-        title: "Llum de paisatge - sèrie analògica",
+        title: "Fotografia de paisatge",
         category: "Fotografia",
         aspect: "span-square",
         cover: "llum de paisatge.jpg",
-        description: "Sèrie de 12 fotografies de paisatge en format mitjà (Kodak Portra 400) on la llum natural transforma boscos, camps i espais oberts.",
-        briefing: "Sense il·luminació artificial; aprofitar l'hora blava i el gra natural del negatiu escanejat.",
+        description: "Sèrie de 12 fotografies de paisatge en pel·lícula analògica, centrada en la llum natural a boscos i camps.",
+        briefing: "Sense llum artificial; aprofitar l'hora blava i el gra natural.",
         subject: "Fotografia Documental",
         professor: "Prof. Jordi Casals",
         year: "1r Curs",
@@ -394,17 +394,17 @@
         ownerId: "stu-5",
         status: "In progress",
         mediaUrl: "",
-        feedbackType: "Selecció i seqüenciació de les 8 fotografies finals",
-        questions: "Quina imatge creieu que hauria d'obrir l'exposició?"
+        feedbackType: "Selecció i seqüència de les 8 imatges finals",
+        questions: "Quina imatge hauria d'obrir la sèrie?"
       },
       {
         id: "proj-4",
-        title: "Kinetik Synth — Interfície Tàctil WebAudio",
+        title: "Disseny d'una app musical",
         category: "UI/UX",
         aspect: "span-square",
-        cover: "https://images.unsplash.com/photo-1558655146-d09347e92766?auto=format&fit=crop&w=900&q=80",
-        description: "Prototip interactiu d'un sintetitzador granular per a navegador dissenyat per a pantalles tàctils i controladors MIDI.",
-        briefing: "Minimitzar la càrrega cognitiva amb feedback visual immediat de les ones sonores.",
+        cover: "disseny app musical.jpg",
+        description: "Prototip d'una aplicació per crear música des del mòbil o la tauleta, amb controls tàctils senzills.",
+        briefing: "Poca càrrega cognitiva i resposta visual immediata.",
         subject: "Disseny d'Interfícies Interactives",
         professor: "Prof. Oriol Soler",
         year: "4t Curs (TFG)",
@@ -416,17 +416,17 @@
         ownerId: "stu-2",
         status: "In progress",
         mediaUrl: "https://figma.com",
-        feedbackType: "Usabilitat dels controls circulars en iPad i mòbil",
-        questions: "És intuïtiu el gest per modular el filtre passa-baixos?"
+        feedbackType: "Usabilitat dels controls en pantalla tàctil",
+        questions: "El gest per modular el so és intuïtiu?"
       },
       {
         id: "proj-5",
-        title: "Arquitectura Brutalista Submergida",
+        title: "Escenari 3D",
         category: "3D",
         aspect: "span-tall",
-        cover: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=900&q=80",
-        description: "Escenari 3D en temps real creat amb Blender i Unreal Engine 5 que imagina un museu submergit a la Costa Brava.",
-        briefing: "Estudi d'il·luminació volumètrica submarina (caustics) i textures de formigó erosionat.",
+        cover: "escenari disseny 3d.jpg",
+        description: "Escenari 3D en temps real d'un edifici abandonat, amb il·luminació atmosfèrica i textures de formigó.",
+        briefing: "Estudi de llum volumètrica i materials desgastats.",
         subject: "Creació d'Entorns 3D",
         professor: "Prof. Sergi Pujol",
         year: "3r Curs",
@@ -438,17 +438,17 @@
         ownerId: "stu-4",
         status: "In progress",
         mediaUrl: "https://youtube.com",
-        feedbackType: "Il·luminació atmosfèrica i escala arquitectònica",
+        feedbackType: "Il·luminació i escala de l'espai",
         questions: "Es percep bé la profunditat de la sala principal?"
       },
       {
         id: "proj-6",
-        title: "Memòria de la Fàbrica — Instal·lació Multisala",
+        title: "Videoinstal·lació",
         category: "Audiovisuals",
         aspect: "span-portrait",
-        cover: "https://images.unsplash.com/photo-1536240478700-b869070f9279?auto=format&fit=crop&w=900&q=80",
-        description: "Videoinstal·lació de tres canals sincronitzats sobre el patrimoni tèxtil de Salt per a la mostra anual d'ERAM.",
-        briefing: "Sincronia rítmica entre projeccions i espai sonor quadrafònic.",
+        cover: "videoinstalació.jpg",
+        description: "Videoinstal·lació de tres pantalles sincronitzades sobre un tema social, pensada per a la mostra anual.",
+        briefing: "Sincronia rítmica entre les projeccions i l'espai sonor.",
         subject: "Projectes Multimèdia",
         professor: "Dra. Anna Rovira",
         year: "4t Curs (TFG)",
@@ -460,17 +460,17 @@
         ownerId: "stu-2",
         status: "In progress",
         mediaUrl: "",
-        feedbackType: "Plantejament espacial de les tres pantalles",
-        questions: "Creieu que l'espectador pot seguir les tres narratives alhora?"
+        feedbackType: "Disposició de les tres pantalles a l'espai",
+        questions: "L'espectador pot seguir les tres històries alhora?"
       },
       {
         id: "proj-7",
-        title: "Nocturns a Girona — Fotografia Urbana",
+        title: "Fotografia urbana nocturna",
         category: "Fotografia",
         aspect: "span-landscape",
         cover: "https://images.unsplash.com/photo-1514565131-fce0801e5785?auto=format&fit=crop&w=1100&q=80",
-        description: "Exploració cromàtica dels reflexos de neó i vapor d'aigua al Barri Vell durant les nits d'hivern.",
-        briefing: "Composicions geomètriques inspirades en el cinema neo-noir asiàtic.",
+        description: "Sèrie de fotografies nocturnes d'una ciutat, amb reflexos, llums de neó i carrers buits.",
+        briefing: "Composicions geomètriques i una paleta de color coherent.",
         subject: "Il·luminació Fotogràfica",
         professor: "Prof. Jordi Casals",
         year: "2n Curs",
@@ -487,12 +487,12 @@
       },
       {
         id: "proj-8",
-        title: "Revista Monogràfica 'Codi Obert'",
+        title: "Revista editorial",
         category: "Disseny gràfic",
         aspect: "span-wide",
-        cover: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=1100&q=80",
-        description: "Publicació impresa de 64 pàgines sobre cultura digital, programari lliure i art generatiu.",
-        briefing: "Enquadernació japonesa vista, paper reciclat de 110g i sistema de notes al marge.",
+        cover: "revista editorial.jpg",
+        description: "Revista impresa de 64 pàgines sobre cultura digital, amb maquetació en retícula i fotografies d'acompanyament.",
+        briefing: "Paper reciclat, enquadernació cosida i notes al marge.",
         subject: "Disseny Editorial i Tipografia",
         professor: "Dra. Anna Rovira",
         year: "2n Curs",
@@ -504,17 +504,17 @@
         ownerId: "stu-3",
         status: "In progress",
         mediaUrl: "",
-        feedbackType: "Proposta de retícula i elecció de papers",
-        questions: "El cos de lletra de 8.5pt resulta còmode per a articles llargs?"
+        feedbackType: "Retícula i elecció de papers",
+        questions: "El cos de lletra és còmode per a textos llargs?"
       },
       {
         id: "proj-9",
-        title: "EcoTrack Campus — App Mobilitat Sostenible",
+        title: "Disseny d'una app mòbil",
         category: "UI/UX",
         aspect: "span-tall",
-        cover: "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?auto=format&fit=crop&w=900&q=80",
-        description: "Aplicació mòbil per coordinar trajectes compartits entre estudiants que viatgen diàriament al campus de Salt.",
-        briefing: "Flux d'usuari en menys de 3 clics per publicar o reservar plaça.",
+        cover: "disseny app mobil.jpg",
+        description: "Aplicació mòbil per compartir trajectes entre estudiants que van cada dia al campus.",
+        briefing: "Publicar o reservar una plaça en menys de 3 tocs.",
         subject: "Disseny d'Interfícies Interactives",
         professor: "Prof. Oriol Soler",
         year: "3r Curs",
@@ -527,16 +527,16 @@
         status: "In progress",
         mediaUrl: "",
         feedbackType: "Arquitectura d'informació i claredat del mapa",
-        questions: "Falta algun filtre essencial per horaris de classe?"
+        questions: "Falta algun filtre important, com els horaris de classe?"
       },
       {
         id: "proj-10",
-        title: "Escultura Orgànica — Simulació de Fluids",
+        title: "Model d'un objecte 3D",
         category: "3D",
         aspect: "span-portrait",
-        cover: "escultura organica.jpg",
-        description: "Peces visuals abstractes generades amb Houdini per a la capçalera d'un programa cultural.",
-        briefing: "Moviment lent, materials translúcids i renderitzat físicament realista.",
+        cover: "objecte 3dd.jpg",
+        description: "Model 3D d'un objecte quotidià, amb textures realistes i renderitzat final en estudi.",
+        briefing: "Topologia neta, materials PBR i il·luminació de producte.",
         subject: "Animació i Simulació 3D",
         professor: "Prof. Sergi Pujol",
         year: "3r Curs",
@@ -548,17 +548,17 @@
         ownerId: "stu-4",
         status: "In progress",
         mediaUrl: "",
-        feedbackType: "Velocitat de simulació i shaders translúcids",
-        questions: "El moviment sembla prou orgànic o massa viscos?"
+        feedbackType: "Qualitat dels materials i del renderitzat",
+        questions: "Els materials semblen prou realistes?"
       },
       {
         id: "proj-11",
-        title: "Videoclip 'Horitzó de Sucesos'",
+        title: "Videoclip musical",
         category: "Audiovisuals",
         aspect: "span-square",
-        cover: "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=900&q=80",
-        description: "Videoclip musical rodat amb òptiques anamòrfiques per a una banda emergent de l'escena independent gironina.",
-        briefing: "Narrativa fragmentada i coreografia de càmera en pla seqüència.",
+        cover: "videoclip.jpg",
+        description: "Videoclip per a una banda local, amb una narrativa fragmentada i moviments de càmera ben coreografiats.",
+        briefing: "Pla seqüència, il·luminació de contrast i localitzacions nocturnes.",
         subject: "Realització Audiovisual",
         professor: "Dr. Marc Ferrer",
         year: "3r Curs",
@@ -570,17 +570,17 @@
         ownerId: "stu-1",
         status: "In progress",
         mediaUrl: "",
-        feedbackType: "Storyboard tècnic i esquema d'il·luminació",
-        questions: "Veieu viable el canvi de localització en una sola jornada?"
+        feedbackType: "Storyboard i esquema d'il·luminació",
+        questions: "Es pot rodar el canvi de localització en una sola jornada?"
       },
       {
         id: "proj-12",
-        title: "Cartelleria Exposició 'Llenguatges del Cos'",
+        title: "Identitat visual d'una exposició",
         category: "Disseny gràfic",
         aspect: "span-landscape",
         cover: "https://images.unsplash.com/photo-1509343256512-d77a5cb3791b?auto=format&fit=crop&w=1100&q=80",
-        description: "Identitat visual i senyalètica per a una exposició de dansa contemporània i fotografia escènica.",
-        briefing: "Combinar fotografia d'alt contrast amb tipografia grotesca condensada.",
+        description: "Identitat visual i senyalètica per a una exposició de fotografia, amb logotip, cartells i material gràfic.",
+        briefing: "Fotografia de contrast alt combinada amb tipografia condensada.",
         subject: "Identitat Visual",
         professor: "Dra. Anna Rovira",
         year: "2n Curs",
@@ -593,7 +593,29 @@
         status: "Submitted",
         mediaUrl: "",
         feedbackType: "Valoració global del sistema gràfic",
-        questions: ""
+        questions: "El sistema gràfic funciona igual de bé en cartell i en senyalètica?"
+      },
+      {
+        id: "proj-13",
+        title: "Experiència de realitat virtual",
+        category: "Realitat immersiva",
+        aspect: "span-landscape",
+        cover: "realitat immersiva.jpg",
+        description: "Experiència de realitat virtual en què l'usuari explora una sala interactiva amb so espacial i objectes que reaccionen als seus gestos.",
+        briefing: "Navegació còmoda sense marejos, interacció amb les mans i so 3D que guiï l'atenció.",
+        subject: "Realitat immersiva",
+        professor: "Prof. Sergi Pujol",
+        year: "3r Curs",
+        deadline: daysFromNow(7),
+        createdAt: daysFromNow(0),
+        stage: "Production",
+        teamType: "individual",
+        participants: ["Oriol Ferrer"],
+        ownerId: "stu-8",
+        status: "In progress",
+        mediaUrl: "",
+        feedbackType: "Comoditat de la navegació i claredat de les interaccions",
+        questions: "S'entén sense instruccions què es pot tocar i què no?"
       }
     ],
     comments: [
@@ -803,6 +825,149 @@
   const organicSculptureProject = state.projects.find((project) => project.id === "proj-10");
   if (organicSculptureProject && organicSculptureProject.cover === "https://images.unsplash.com/photo-1633356122544-f134324a6cee?auto=format&fit=crop&w=900&q=80") {
     organicSculptureProject.cover = "escultura organica.jpg";
+    projectMigrated = true;
+  }
+  if (organicSculptureProject && organicSculptureProject.cover !== "objecte 3dd.jpg") {
+    organicSculptureProject.cover = "objecte 3dd.jpg";
+    projectMigrated = true;
+  }
+  const projectTextMigrationKey = "eram_creative_network_projects_text_v2";
+  if (!localStorage.getItem(projectTextMigrationKey)) {
+    const projectUpdates = {
+      "proj-1": {
+        title: "Curtmetratge documental",
+        description: "Curtmetratge documental d'observació sobre la vida quotidiana d'un barri, rodat amb llum natural i so ambient.",
+        briefing: "Plans fixos llargs, entrevistes curtes i paisatge sonor enregistrat in situ.",
+        feedbackType: "Ritme del primer muntatge i transicions sonores",
+        questions: "L'inici manté l'interès abans de la primera entrevista?"
+      },
+      "proj-2": {
+        title: "Cartell tipogràfic",
+        description: "Cartell tipogràfic per a un festival d'arts escèniques, basat en el contrast de tipografies i una paleta reduïda.",
+        briefing: "Jerarquia clara, graella modular i lectura ràpida a distància.",
+        feedbackType: "Llegibilitat i jerarquia visual",
+        questions: "Funciona millor la versió en blanc i negre o amb un color d'accent?"
+      },
+      "proj-3": {
+        title: "Fotografia de paisatge",
+        description: "Sèrie de 12 fotografies de paisatge en pel·lícula analògica, centrada en la llum natural a boscos i camps.",
+        briefing: "Sense llum artificial; aprofitar l'hora blava i el gra natural.",
+        feedbackType: "Selecció i seqüència de les 8 imatges finals",
+        questions: "Quina imatge hauria d'obrir la sèrie?"
+      },
+      "proj-4": {
+        title: "Disseny d'una app musical",
+        description: "Prototip d'una aplicació per crear música des del mòbil o la tauleta, amb controls tàctils senzills.",
+        briefing: "Poca càrrega cognitiva i resposta visual immediata.",
+        feedbackType: "Usabilitat dels controls en pantalla tàctil",
+        questions: "El gest per modular el so és intuïtiu?"
+      },
+      "proj-5": {
+        title: "Escenari 3D",
+        description: "Escenari 3D en temps real d'un edifici abandonat, amb il·luminació atmosfèrica i textures de formigó.",
+        briefing: "Estudi de llum volumètrica i materials desgastats.",
+        feedbackType: "Il·luminació i escala de l'espai",
+        questions: "Es percep bé la profunditat de la sala principal?"
+      },
+      "proj-6": {
+        title: "Videoinstal·lació",
+        description: "Videoinstal·lació de tres pantalles sincronitzades sobre un tema social, pensada per a la mostra anual.",
+        briefing: "Sincronia rítmica entre les projeccions i l'espai sonor.",
+        feedbackType: "Disposició de les tres pantalles a l'espai",
+        questions: "L'espectador pot seguir les tres històries alhora?"
+      },
+      "proj-7": {
+        title: "Fotografia urbana nocturna",
+        description: "Sèrie de fotografies nocturnes d'una ciutat, amb reflexos, llums de neó i carrers buits.",
+        briefing: "Composicions geomètriques i una paleta de color coherent.",
+        feedbackType: "Coherència de color entre les 6 làmines",
+        questions: "Sobresurt massa el blau a la quarta fotografia?"
+      },
+      "proj-8": {
+        title: "Revista editorial",
+        description: "Revista impresa de 64 pàgines sobre cultura digital, amb maquetació en retícula i fotografies d'acompanyament.",
+        briefing: "Paper reciclat, enquadernació cosida i notes al marge.",
+        feedbackType: "Retícula i elecció de papers",
+        questions: "El cos de lletra és còmode per a textos llargs?"
+      },
+      "proj-9": {
+        title: "Disseny d'una app mòbil",
+        description: "Aplicació mòbil per compartir trajectes entre estudiants que van cada dia al campus.",
+        briefing: "Publicar o reservar una plaça en menys de 3 tocs.",
+        feedbackType: "Arquitectura de la informació i claredat del mapa",
+        questions: "Falta algun filtre important, com els horaris de classe?"
+      },
+      "proj-10": {
+        title: "Model d'un objecte 3D",
+        description: "Model 3D d'un objecte quotidià, amb textures realistes i renderitzat final en estudi.",
+        briefing: "Topologia neta, materials PBR i il·luminació de producte.",
+        feedbackType: "Qualitat dels materials i del renderitzat",
+        questions: "Els materials semblen prou realistes?"
+      },
+      "proj-11": {
+        title: "Videoclip musical",
+        description: "Videoclip per a una banda local, amb una narrativa fragmentada i moviments de càmera ben coreografiats.",
+        briefing: "Pla seqüència, il·luminació de contrast i localitzacions nocturnes.",
+        feedbackType: "Storyboard i esquema d'il·luminació",
+        questions: "Es pot rodar el canvi de localització en una sola jornada?"
+      },
+      "proj-12": {
+        title: "Identitat visual d'una exposició",
+        description: "Identitat visual i senyalètica per a una exposició de fotografia, amb logotip, cartells i material gràfic.",
+        briefing: "Fotografia de contrast alt combinada amb tipografia condensada.",
+        feedbackType: "Valoració global del sistema gràfic",
+        questions: "El sistema gràfic funciona igual de bé en cartell i en senyalètica?"
+      }
+    };
+    state.projects.forEach((project) => {
+      const updates = projectUpdates[project.id];
+      if (updates) Object.assign(project, updates);
+    });
+    if (!state.projects.some((project) => project.id === "proj-13")) {
+      const newProject = INITIAL_STATE.projects.find((project) => project.id === "proj-13");
+      if (newProject) state.projects.push(structuredClone(newProject));
+    }
+    projectMigrated = true;
+    localStorage.setItem(projectTextMigrationKey, "1");
+  }
+  const immersiveProject = state.projects.find((project) => project.id === "proj-13");
+  if (immersiveProject && immersiveProject.cover !== "realitat immersiva.jpg") {
+    immersiveProject.cover = "realitat immersiva.jpg";
+    projectMigrated = true;
+  }
+  const typographyPosterProject = state.projects.find((project) => project.id === "proj-2");
+  if (typographyPosterProject && typographyPosterProject.cover !== "cartell tipografic.jpg") {
+    typographyPosterProject.cover = "cartell tipografic.jpg";
+    projectMigrated = true;
+  }
+  const editorialMagazineProject = state.projects.find((project) => project.id === "proj-8");
+  if (editorialMagazineProject && editorialMagazineProject.cover !== "revista editorial.jpg") {
+    editorialMagazineProject.cover = "revista editorial.jpg";
+    projectMigrated = true;
+  }
+  const stageDesignProject = state.projects.find((project) => project.id === "proj-5");
+  if (stageDesignProject && stageDesignProject.cover !== "escenari disseny 3d.jpg") {
+    stageDesignProject.cover = "escenari disseny 3d.jpg";
+    projectMigrated = true;
+  }
+  const mobileAppProject = state.projects.find((project) => project.id === "proj-9");
+  if (mobileAppProject && mobileAppProject.cover !== "disseny app mobil.jpg") {
+    mobileAppProject.cover = "disseny app mobil.jpg";
+    projectMigrated = true;
+  }
+  const musicVideoProject = state.projects.find((project) => project.id === "proj-11");
+  if (musicVideoProject && musicVideoProject.cover !== "videoclip.jpg") {
+    musicVideoProject.cover = "videoclip.jpg";
+    projectMigrated = true;
+  }
+  const videoInstallationProject = state.projects.find((project) => project.id === "proj-6");
+  if (videoInstallationProject && videoInstallationProject.cover !== "videoinstalació.jpg") {
+    videoInstallationProject.cover = "videoinstalació.jpg";
+    projectMigrated = true;
+  }
+  const musicAppProject = state.projects.find((project) => project.id === "proj-4");
+  if (musicAppProject && musicAppProject.cover !== "disseny app musical.jpg") {
+    musicAppProject.cover = "disseny app musical.jpg";
     projectMigrated = true;
   }
   if (projectMigrated) {
