@@ -777,7 +777,7 @@
     route: "discover",
     selectedCategory: "General",
     searchQuery: "",
-    sortBy: "recommended",
+    sortBy: "recent",
     visibleCount: 12,
     filters: {
       subject: "",
@@ -1039,7 +1039,10 @@
         const cb = state.comments.filter((c) => c.projectId === b.id).length;
         return cb - ca;
       }
-      // Default: "recommended" normalized algorithm
+      // Default: most recent projects
+      if (ui.sortBy === "recent") {
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      }
       return computeProjectVisibilityScore(b) - computeProjectVisibilityScore(a);
     });
 
@@ -2234,7 +2237,11 @@
       });
     };
 
-    toggleDropdown("create-menu-trigger", "create-dropdown");
+    document.getElementById("create-menu-trigger").addEventListener("click", (event) => {
+      event.stopPropagation();
+      closeAllPopovers();
+      openModal("modal-create");
+    });
     toggleDropdown("notif-menu-trigger", "notif-dropdown");
     toggleDropdown("profile-menu-trigger", "profile-dropdown");
     toggleDropdown("platform-menu-trigger", "platform-dropdown");
@@ -2256,6 +2263,7 @@
     // Action triggers (Modals)
     document.querySelectorAll("[data-action='open-publish-project']").forEach((btn) => {
       btn.addEventListener("click", () => {
+        closeModal("modal-create");
         document.getElementById("modal-project-title").textContent = "Publicar nou projecte";
         document.getElementById("publish-project-form").reset();
         document.getElementById("proj-edit-id").value = "";
@@ -2263,13 +2271,6 @@
         uploadedProjectCover = "";
         document.getElementById("proj-cover-preview").classList.add("hidden");
         document.getElementById("proj-cover-remove").classList.add("hidden");
-        const tier = getAchievementTier(getCurrentUser().points);
-        document.getElementById("proj-image-size").innerHTML = `
-          <option value="small">Dimensió 1 — 600 px</option>
-          ${tier.level >= 2 ? '<option value="medium">Dimensió 2 — 900 px</option>' : ""}
-          ${tier.level >= 3 ? '<option value="large">Dimensió 3 — 1200 px</option>' : ""}
-          ${tier.level >= 4 ? '<option value="xlarge">Dimensió 4 — 1600 px</option>' : ""}
-        `;
         document.getElementById("proj-registered-participant").innerHTML =
           '<option value="">Selecciona un estudiant registrat</option>' +
           state.students.map((student) => `<option value="${escapeHtml(student.name)}">${escapeHtml(student.name)}</option>`).join("");
@@ -2279,6 +2280,7 @@
 
     document.querySelectorAll("[data-action='open-publish-position']").forEach((btn) => {
       btn.addEventListener("click", () => {
+        closeModal("modal-create");
         document.getElementById("publish-position-form").reset();
         document.getElementById("pos-start").value = daysFromNow(3);
         document.getElementById("pos-end").value = daysFromNow(20);
@@ -2304,12 +2306,10 @@
       btn.addEventListener("click", () => closeModal(btn.dataset.closeModal));
     });
 
-    const projectAspect = document.getElementById("proj-aspect");
-    if (projectAspect) {
-      projectAspect.addEventListener("change", () => {
-        document.getElementById("proj-custom-size").classList.toggle("hidden", projectAspect.value !== "custom");
-      });
-    }
+    document.getElementById("modal-create")?.addEventListener("click", (event) => {
+      if (event.target.id === "modal-create") closeModal("modal-create");
+    });
+
 
     // Category Filter Buttons ("General" + Pills)
     document.querySelectorAll("[data-category]").forEach((btn) => {
@@ -2341,11 +2341,6 @@
     // Advanced Filters Toggle & Controls
     document.getElementById("toggle-advanced-filters").addEventListener("click", () => {
       document.getElementById("advanced-filters-panel").classList.toggle("hidden");
-    });
-
-    document.getElementById("sort-projects-select").addEventListener("change", (e) => {
-      ui.sortBy = e.target.value;
-      renderDiscoverView();
     });
 
     const filterBindings = [
@@ -2488,6 +2483,15 @@
 
       const currentUser = getCurrentUser();
       const editId = document.getElementById("proj-edit-id").value;
+      const userTier = getAchievementTier(currentUser.points);
+      const levelImageSize = {
+        1: "600px",
+        2: "900px",
+        3: "1200px",
+        4: "1600px",
+        5: "1600px"
+      };
+      const automaticImageSize = levelImageSize[userTier.level] || "600px";
       const aspectMap = {
         portrait: "span-portrait",
         tall: "span-tall",
@@ -2506,11 +2510,6 @@
       };
 
       let aspect = aspectMap[document.getElementById("proj-aspect").value] || "span-portrait";
-      if (document.getElementById("proj-aspect").value === "custom") {
-        const width = document.getElementById("proj-custom-width").value;
-        const height = document.getElementById("proj-custom-height").value;
-        aspect = `span-custom span-custom-w${width} span-custom-h${height}`;
-      }
 
       const category = document.getElementById("proj-category").value;
       const coverInput = document.getElementById("proj-cover").value.trim();
@@ -2540,10 +2539,12 @@
             mediaUrl: document.getElementById("proj-media-url").value.trim(),
             feedbackType,
             questions: document.getElementById("proj-questions").value.trim(),
+            imageSize: automaticImageSize,
             seekingCollaborator: document.getElementById("proj-seeking-collaborator").checked,
             collaboratorRole: document.getElementById("proj-seeking-collaborator").checked
               ? document.getElementById("proj-collab-role").value
-              : ""
+              : "",
+            imageSize: automaticImageSize
           });
           if (stageChanged) {
             awardPoints(currentUser.id, `stage-${existing.id}-${existing.stage}`, 2, "Actualització de fase del projecte");
@@ -2581,7 +2582,7 @@
         collaboratorRole: document.getElementById("proj-seeking-collaborator").checked
           ? document.getElementById("proj-collab-role").value
           : "",
-        imageSize: document.getElementById("proj-image-size").value
+        imageSize: automaticImageSize
       };
 
       state.projects.unshift(newProject);

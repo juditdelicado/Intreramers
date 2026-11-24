@@ -274,16 +274,6 @@
             </svg>
             <span>Create</span>
           </button>
-          <div class="popover-menu hidden" id="create-dropdown" role="menu">
-            <button type="button" class="popover-item" data-action="open-publish-project" role="menuitem">
-              <strong>Publicar projecte</strong>
-              <span>Comparteix un projecte en curs per rebre feedback</span>
-            </button>
-            <button type="button" class="popover-item" data-action="open-publish-position" role="menuitem">
-              <strong>Publicar posició oberta</strong>
-              <span>Busca col·laboradors (so, càmera, muntatge, actors...)</span>
-            </button>
-          </div>
         </div>
 
         <!-- Notifications Circle -->
@@ -351,13 +341,6 @@
               <span>Filtres</span>
               <span class="filter-count-pill hidden" id="active-filter-count">0</span>
             </button>
-            <select id="sort-projects-select" class="subtle-select" aria-label="Ordenar projectes">
-              <option value="recommended">Recomanats per a tu</option>
-              <option value="deadline">Termini més proper</option>
-              <option value="needs_feedback">Necessiten més feedback</option>
-              <option value="recent">Publicats recentment</option>
-              <option value="discussed">Més comentats</option>
-            </select>
           </div>
         </div>
 
@@ -528,6 +511,29 @@
     </section>
   </main>
 
+  <!-- CREATE ACTIONS OVERLAY -->
+  <div class="modal-backdrop hidden" id="modal-create" role="dialog" aria-modal="true" aria-labelledby="modal-create-title">
+    <div class="create-modal-card">
+      <div class="create-modal-header">
+        <h2 id="modal-create-title">Què vols crear?</h2>
+        <button type="button" class="modal-close-btn" data-close-modal="modal-create" aria-label="Tancar">&times;</button>
+      </div>
+      <button type="button" class="create-action-primary" data-action="open-publish-project">
+        <span class="create-action-icon">+</span>
+        <span>
+          <strong>Penjar un nou projecte</strong>
+          <small>Publica el teu treball i busca feedback creatiu</small>
+        </span>
+      </button>
+      <button type="button" class="create-action-secondary" data-action="open-publish-position">
+        <span>
+          <strong>Publicar una oferta de rol</strong>
+          <small>Busca un estudiant per col·laborar al teu projecte</small>
+        </span>
+      </button>
+    </div>
+  </div>
+
   <!-- MODAL: PUBLISH / EDIT PROJECT -->
   <div class="modal-backdrop hidden" id="modal-publish-project" role="dialog" aria-modal="true" aria-labelledby="modal-project-title">
     <div class="modal-card modal-large">
@@ -590,30 +596,13 @@
             </select>
           </div>
           <div class="form-group">
-            <label for="proj-image-size">Mida màxima del teu nivell</label>
-            <select id="proj-image-size">
-              <option value="small">Dimensió 1 — 600 px</option>
-              <option value="medium">Dimensió 2 — 900 px</option>
-              <option value="large">Dimensió 3 — 1200 px</option>
-              <option value="xlarge">Dimensió 4 — 1600 px</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-grid-2 hidden" id="proj-custom-size">
-          <div class="form-group">
-            <label for="proj-custom-width">Amplada (columns)</label>
-            <select id="proj-custom-width">
-              <option value="1">1 columna</option>
-              <option value="2">2 columnes</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="proj-custom-height">Alçada</label>
-            <select id="proj-custom-height">
-              <option value="11">Petita</option>
-              <option value="14">Mitjana</option>
-              <option value="16">Alta</option>
-              <option value="20">Molt alta</option>
+            <label for="proj-image-position">Enquadrament</label>
+            <select id="proj-image-position">
+              <option value="center">Centrat</option>
+              <option value="top">Superior</option>
+              <option value="bottom">Inferior</option>
+              <option value="left">Esquerra</option>
+              <option value="right">Dreta</option>
             </select>
           </div>
         </div>
