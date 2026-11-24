@@ -767,8 +767,10 @@
   function saveState() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      return true;
     } catch (e) {
       console.warn("Error desant estat:", e);
+      return false;
     }
   }
 
@@ -776,6 +778,9 @@
   // 2. UI FILTERS & ROUTING STATE
   // ========================================================================
   let uploadedProjectCover = "";
+  let uploadedProjectMediaImages = [];
+  let projectMediaUploadPending = false;
+  let projectMediaUploadGeneration = 0;
   const projectCropSizes = {
     portrait: { width: 720, height: 960 },
     wide: { width: 1280, height: 720 },
@@ -799,11 +804,12 @@
 
   function setProjectWizardStep(step) {
     const labels = [
-      "Pas 1 de 5 · Nom",
-      "Pas 2 de 5 · Imatge",
-      "Pas 3 de 5 · Descripció",
-      "Pas 4 de 5 · Context acadèmic",
-      "Pas 5 de 5 · Multimèdia i feedback"
+      "Pas 1 de 6 · Nom",
+      "Pas 2 de 6 · Imatge",
+      "Pas 3 de 6 · Descripció",
+      "Pas 4 de 6 · Context acadèmic",
+      "Pas 5 de 6 · Multimèdia",
+      "Pas 6 de 6 · Feedback"
     ];
     const lastStep = labels.length;
     projectWizardStep = Math.max(1, Math.min(lastStep, step));
@@ -862,6 +868,93 @@
     }
 
     setProjectWizardStep(projectWizardStep + 1);
+  }
+
+  function syncProjectTeamFields() {
+    const isGroup = document.getElementById("proj-team-type").value === "group";
+    const participantsWrap = document.getElementById("proj-participants-wrap");
+    const collaboratorOptionWrap = document.getElementById("proj-collaborator-option-wrap");
+    const collaboratorCheckbox = document.getElementById("proj-seeking-collaborator");
+    const collaboratorRole = document.getElementById("proj-collab-role");
+
+    participantsWrap.hidden = !isGroup;
+    collaboratorOptionWrap.hidden = !isGroup;
+    if (!isGroup) {
+      participantsWrap.querySelector("#proj-participants").value = "";
+      collaboratorCheckbox.checked = false;
+      collaboratorRole.selectedIndex = 0;
+    }
+    document.getElementById("proj-collab-role-wrap").hidden = !isGroup || !collaboratorCheckbox.checked;
+  }
+
+  function renderProjectMediaPreview() {
+    const preview = document.getElementById("proj-media-images-preview");
+    if (!preview) return;
+    preview.innerHTML = uploadedProjectMediaImages
+      .map((image) => `
+        <div class="project-media-upload-card">
+          <img src="${escapeHtml(image.src)}" alt="${escapeHtml(image.name)}" />
+          <span>${escapeHtml(image.name)}</span>
+          <button type="button" class="text-link-btn" data-remove-project-media="${escapeHtml(image.id)}" aria-label="Eliminar ${escapeHtml(image.name)}">&times;</button>
+        </div>
+      `)
+      .join("");
+
+    preview.querySelectorAll("[data-remove-project-media]").forEach((button) => {
+      button.addEventListener("click", () => {
+        uploadedProjectMediaImages = uploadedProjectMediaImages.filter((image) => image.id !== button.dataset.removeProjectMedia);
+        renderProjectMediaPreview();
+      });
+    });
+  }
+
+  function readProjectMediaImage(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("No s’ha pogut llegir el fitxer."));
+      reader.onload = () => {
+        if (typeof reader.result !== "string") {
+          reject(new Error("El fitxer no s’ha pogut convertir en una imatge."));
+          return;
+        }
+
+        const image = new Image();
+        image.onerror = () => reject(new Error("El fitxer seleccionat no és una imatge vàlida."));
+        image.onload = () => {
+          if (!image.naturalWidth || !image.naturalHeight) {
+            reject(new Error("La imatge no té unes dimensions vàlides."));
+            return;
+          }
+          const maxDimension = 1440;
+          const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+          canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+          const context = canvas.getContext("2d");
+          if (!context) {
+            reject(new Error("No s’ha pogut processar la imatge."));
+            return;
+          }
+          context.fillStyle = "#fff";
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+          try {
+            resolve({
+              id: `media-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              name: file.name,
+              src: canvas.toDataURL("image/jpeg", 0.82),
+              width: canvas.width,
+              height: canvas.height
+            });
+          } catch (error) {
+            reject(error);
+          }
+        };
+        image.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
   }
 
   function showProjectCropError(message) {
@@ -1300,6 +1393,13 @@
     "Final review": "6. Revisió final"
   };
 
+  function updateProjectDetailStickyTop() {
+    const projectDetailPage = document.querySelector("#view-project-detail .project-detail-page");
+    if (!projectDetailPage) return;
+    const navigationHeight = document.querySelector(".top-nav")?.getBoundingClientRect().height || 0;
+    projectDetailPage.style.setProperty("--project-detail-sticky-top", `${Math.ceil(navigationHeight + 16)}px`);
+  }
+
   function renderProjectDetailView() {
     const container = document.getElementById("view-project-detail");
     const proj = state.projects.find((p) => p.id === ui.activeProjectId);
@@ -1311,102 +1411,130 @@
     const owner = getStudentById(proj.ownerId);
     const currentUser = getCurrentUser();
     const isOwner = proj.ownerId === currentUser.id;
-    const daysLeft = getDaysUntilDeadline(proj.deadline);
 
     const projectComments = state.comments.filter((c) => c.projectId === proj.id);
+    const projectMediaImages = (Array.isArray(proj.mediaImages) ? proj.mediaImages : [])
+      .filter((image) => image && image.id && image.src);
+    const projectParticipants = [...new Set([owner.name, ...(Array.isArray(proj.participants) ? proj.participants : [])].filter(Boolean))];
+    const projectParticipantsMarkup = projectParticipants.map((name) => {
+      const participant = state.students.find((student) => student.name === name);
+      const initials = name.split(/\s+/).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase();
+      const avatar = participant?.avatar
+        ? `<img src="${escapeHtml(participant.avatar)}" alt="" />`
+        : `<span class="detail-participant-initials" aria-hidden="true">${escapeHtml(initials)}</span>`;
+      const role = name === owner.name ? "Autor/a" : "Participant";
+      const content = `${avatar}<span class="detail-participant-name">${escapeHtml(name)}<small>${role}</small></span>`;
+      return participant
+        ? `<button type="button" class="detail-participant" data-open-profile="${escapeHtml(participant.id)}">${content}</button>`
+        : `<div class="detail-participant">${content}</div>`;
+    }).join("");
+    const projectAspectRatios = {
+      portrait: "3 / 4",
+      tall: "3 / 4",
+      "span-portrait": "3 / 4",
+      "span-tall": "3 / 4",
+      square: "1 / 1",
+      "span-square": "1 / 1",
+      landscape: "16 / 9",
+      wide: "16 / 9",
+      "span-landscape": "16 / 9",
+      "span-wide": "16 / 9"
+    };
+    const coverAspectRatio = projectAspectRatios[proj.aspect] || "3 / 4";
+    const complementaryInfo = [
+      proj.professor && `<div><span>Professor/a</span><strong>${escapeHtml(proj.professor)}</strong></div>`,
+      proj.year && `<div><span>Curs acadèmic</span><strong>${escapeHtml(proj.year)}</strong></div>`,
+      proj.deadline && `<div><span>Data límit</span><strong>${escapeHtml(proj.deadline)}</strong></div>`
+    ].filter(Boolean).join("");
 
     container.innerHTML = `
-      <div class="page-container">
+      <div class="page-container project-detail-page">
         <div class="detail-back-bar">
           <button type="button" class="btn-secondary-pill" id="detail-back-btn">&larr; Tornar a projectes</button>
-          ${
-            isOwner
-              ? `<div style="display:flex;gap:8px;flex-wrap:wrap;">
+        </div>
+
+        <section class="project-detail-main" aria-label="Projecte i galeria">
+          <div class="detail-layout">
+            <div class="project-gallery-column">
+              <div class="project-gallery-stack" aria-label="Galeria d'imatges del projecte">
+                <figure class="project-gallery-frame project-gallery-cover ${isProjectCoverFramed(proj) ? "framed-cover" : ""}" style="--project-gallery-ratio:${coverAspectRatio}">
+                  <img src="${escapeHtml(proj.cover)}" alt="${escapeHtml(proj.title)}" />
+                </figure>
+                ${projectMediaImages.length ? `<div class="project-gallery-mosaic">${projectMediaImages.map((image) => {
+                  const width = Number(image.width);
+                  const height = Number(image.height);
+                  const hasDimensions = Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0;
+                  const ratio = hasDimensions
+                    ? `${width} / ${height}`
+                    : "4 / 3";
+                  const wideClass = hasDimensions && width > height ? " project-gallery-photo-wide" : "";
+                  return `
+                    <figure class="project-gallery-frame project-gallery-photo${wideClass}" id="project-media-${escapeHtml(image.id)}" tabindex="-1" style="--project-gallery-ratio:${ratio}">
+                      <img src="${escapeHtml(image.src)}" alt="${escapeHtml(image.name || `Imatge del projecte ${proj.title}`)}" loading="lazy" />
+                    </figure>
+                  `;
+                }).join("")}</div>` : ""}
+              </div>
+            </div>
+
+            <aside class="detail-info-card">
+              <div class="detail-info-heading">
+                <div class="detail-project-badges">
+                  <span class="pill-tag">${escapeHtml(proj.category)}</span>
+                  ${proj.stage ? `<span class="pill-tag">${escapeHtml(STAGE_LABELS[proj.stage] || proj.stage)}</span>` : ""}
+                </div>
+                ${!isOwner ? `<span class="pill-tag ${proj.status === "In progress" ? "" : "success"}">${escapeHtml(proj.status)}</span>` : ""}
+              </div>
+
+              <h1 class="detail-project-title">${escapeHtml(proj.title)}</h1>
+              <div class="detail-participants">
+                <h2>Autoria i participants</h2>
+                <div class="detail-participant-list">${projectParticipantsMarkup}</div>
+              </div>
+
+              <p class="detail-project-description">${escapeHtml(proj.description)}</p>
+
+              <div class="detail-project-facts">
+                ${proj.subject ? `<div><span>Assignatura</span><strong>${escapeHtml(proj.subject)}</strong></div>` : ""}
+                <div><span>Modalitat</span><strong>${proj.teamType === "group" ? "Treball en grup" : "Individual"}</strong></div>
+              </div>
+
+              ${proj.briefing || proj.feedbackType || proj.questions ? `
+                <details class="detail-project-notes">
+                  <summary>Briefing i feedback buscat</summary>
+                  ${proj.briefing ? `<p><strong>Objectius:</strong> ${escapeHtml(proj.briefing)}</p>` : ""}
+                  ${proj.feedbackType ? `<p><strong>Feedback:</strong> ${escapeHtml(proj.feedbackType)}</p>` : ""}
+                  ${proj.questions ? `<p><strong>Pregunta:</strong> ${escapeHtml(proj.questions)}</p>` : ""}
+                </details>
+              ` : ""}
+
+              ${proj.teamType === "group" && proj.seekingCollaborator ? `
+                <div class="detail-collaborator-request">
+                  <div><span>Es busca col·laboració</span><strong>${escapeHtml(proj.collaboratorRole || "Rol per concretar")}</strong></div>
+                  <button type="button" class="btn-secondary" data-contact-owner="${escapeHtml(owner.id)}">Contactar</button>
+                </div>
+              ` : ""}
+
+              ${proj.mediaUrl ? `<a href="${escapeHtml(proj.mediaUrl)}" target="_blank" rel="noopener" class="detail-media-link">Obrir material multimèdia ↗</a>` : ""}
+
+              <div class="detail-project-actions">
+                ${isOwner ? `
                   <button type="button" class="btn-secondary-pill" id="edit-project-btn">Editar projecte</button>
                   <select id="owner-status-select" class="pill-select" aria-label="Canviar estat del projecte">
-                    <option value="In progress" ${proj.status === "In progress" ? "selected" : ""}>En curs (Actiu)</option>
+                    <option value="In progress" ${proj.status === "In progress" ? "selected" : ""}>En curs</option>
                     <option value="Submitted" ${proj.status === "Submitted" ? "selected" : ""}>Entregat (+5 pts)</option>
-                    <option value="Resolved" ${proj.status === "Resolved" ? "selected" : ""}>Resolt / Completat (+5 pts)</option>
+                    <option value="Resolved" ${proj.status === "Resolved" ? "selected" : ""}>Resolt (+5 pts)</option>
                   </select>
-                </div>`
-              : `<span class="pill-tag ${proj.status === "In progress" ? "" : "success"}">${escapeHtml(proj.status)}</span>`
-          }
-        </div>
-
-        <div class="detail-layout">
-          <div>
-            <div class="detail-media-stage ${isProjectCoverFramed(proj) ? "framed-cover" : ""}">
-              <img src="${escapeHtml(proj.cover)}" alt="${escapeHtml(proj.title)}" />
-            </div>
-            ${
-              proj.mediaUrl
-                ? `<div class="detail-external-media">
-                    <div>
-                      <strong>Material multimèdia adjunt</strong>
-                      <div style="font-size:12px;color:var(--text-secondary);">${escapeHtml(proj.mediaUrl)}</div>
-                    </div>
-                    <a href="${escapeHtml(proj.mediaUrl)}" target="_blank" rel="noopener" class="btn-primary">Obrir enllaç</a>
-                  </div>`
-                : ""
-            }
-          </div>
-
-          <div class="detail-info-card">
-            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
-              <span class="pill-tag">${escapeHtml(proj.category)}</span>
-              <span class="pill-tag">${STAGE_LABELS[proj.stage] || proj.stage}</span>
-              ${daysLeft <= 5 && daysLeft >= 0 ? `<span class="pill-tag urgent">Entrega en ${daysLeft} dies</span>` : ""}
-            </div>
-
-            <h1 class="page-title" style="margin-bottom:8px;">${escapeHtml(proj.title)}</h1>
-            <p style="color:var(--text-secondary);margin-top:0;">${escapeHtml(proj.description)}</p>
-
-            <div style="display:flex;align-items:center;gap:10px;margin-top:14px;cursor:pointer;" data-open-profile="${owner.id}">
-              <img src="${escapeHtml(owner.avatar)}" alt="${escapeHtml(owner.name)}" class="nav-avatar" />
-              <div>
-                <strong style="display:block;font-size:13.5px;">${escapeHtml(owner.name)} <span style="font-weight:400;color:var(--text-muted);">(Autor/a)</span></strong>
-                <span style="font-size:12px;color:var(--text-secondary);">${escapeHtml(owner.year)} · ${owner.points} pts</span>
+                ` : ""}
+                <button type="button" class="btn-primary" id="detail-comment-action">Comentar</button>
               </div>
-            </div>
-
-            <div class="detail-meta-grid">
-              <div class="meta-item"><span>Assignatura</span><strong>${escapeHtml(proj.subject)}</strong></div>
-              <div class="meta-item"><span>Professor/a</span><strong>${escapeHtml(proj.professor)}</strong></div>
-              <div class="meta-item"><span>Curs acadèmic</span><strong>${escapeHtml(proj.year)}</strong></div>
-              <div class="meta-item"><span>Data límit</span><strong>${escapeHtml(proj.deadline)}</strong></div>
-              <div class="meta-item"><span>Modalitat</span><strong>${proj.teamType === "group" ? "Projecte en grup" : "Individual"}</strong></div>
-              <div class="meta-item"><span>Participants</span><strong>${(proj.participants || [owner.name]).map((name) => {
-                const participant = state.students.find((student) => student.name === name);
-                return participant
-                  ? `<button type="button" class="subject-project-link" data-open-profile="${participant.id}" style="border:0;background:transparent;padding:0;color:var(--text-primary);text-decoration:underline;">${escapeHtml(name)}</button>`
-                  : `<span>${escapeHtml(name)}</span>`;
-              }).join(" · ")}</strong></div>
-            </div>
-
-            <div>
-              <strong style="font-size:13px;">Briefing creatiu</strong>
-              <p style="font-size:13px;color:var(--text-secondary);margin:4px 0 0;">${escapeHtml(proj.briefing)}</p>
-            </div>
-
-            <div class="feedback-request-box">
-              <h4>Feedback sol·licitat per l'equip</h4>
-              <p style="margin:0 0 6px;font-size:13px;"><strong>Focus:</strong> ${escapeHtml(proj.feedbackType)}</p>
-              ${proj.questions ? `<p style="margin:0;font-size:12.5px;color:var(--text-secondary);"><strong>Pregunta clau:</strong> "${escapeHtml(proj.questions)}"</p>` : ""}
-            </div>
-            ${proj.seekingCollaborator ? `
-              <div class="feedback-request-box">
-                <h4>Busquem col·laboració</h4>
-                <p style="margin:0;font-size:13px;">Rol necessari: <strong>${escapeHtml(proj.collaboratorRole)}</strong></p>
-                <button type="button" class="btn-secondary" data-contact-owner="${escapeHtml(owner.id)}">Contactar l'autor/a</button>
-              </div>
-            ` : ""}
+            </aside>
           </div>
-        </div>
+        </section>
 
-        <!-- PEER FEEDBACK SECTION -->
-        <div class="feedback-section">
+        <section class="feedback-section" id="project-comments-section" aria-label="Comentaris del projecte">
           <div class="feedback-header">
-            <h2 style="margin:0;font-size:19px;">Feedback constructiu (${projectComments.length})</h2>
+            <h2 style="margin:0;font-size:19px;">Comentaris i feedback (${projectComments.length})</h2>
             <select id="comment-sort-select" class="pill-select" aria-label="Ordenar comentaris">
               <option value="useful">Més útils (valoració autor)</option>
               <option value="seconded">Més secundats</option>
@@ -1416,6 +1544,15 @@
 
           <form id="add-comment-form" class="comment-composer">
             <textarea id="new-comment-text" rows="3" placeholder="Escriu una crítica constructiva, suggeriment tècnic o referència útil (mínim 20 caràcters per obtenir punts)..." required></textarea>
+            ${projectMediaImages.length ? `
+              <div class="comment-photo-linking">
+                <label for="comment-photo-reference">Referenciar una fotografia (opcional)</label>
+                <select id="comment-photo-reference">
+                  <option value="">Cap fotografia</option>
+                  ${projectMediaImages.map((image) => `<option value="${escapeHtml(image.id)}">${escapeHtml(image.name || "Fotografia del projecte")}</option>`).join("")}
+                </select>
+              </div>
+            ` : ""}
             <div class="composer-footer">
               <span style="font-size:12px;color:var(--text-secondary);">
                 ${isOwner ? "Ets l'autor/a d'aquest projecte (pots valorar la utilitat dels comentaris d'1 a 5 estrelles)." : "Primer comentari: +15 pts · segon: +10 pts · tercer: +7 pts · a partir del quart: +5 pts."}
@@ -1425,11 +1562,23 @@
           </form>
 
           <div class="comment-list" id="project-comments-list"></div>
-        </div>
+        </section>
+
+        ${complementaryInfo ? `
+          <section class="project-complementary-info" aria-label="Informació acadèmica complementària">
+            <h2>Informació complementària</h2>
+            <div>${complementaryInfo}</div>
+          </section>
+        ` : ""}
       </div>
     `;
+    updateProjectDetailStickyTop();
 
     document.getElementById("detail-back-btn").addEventListener("click", () => navigateTo("discover"));
+
+    document.getElementById("detail-comment-action").addEventListener("click", () => {
+      document.getElementById("project-comments-section").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
 
     const editBtn = document.getElementById("edit-project-btn");
     if (editBtn) {
@@ -1464,11 +1613,13 @@
       }
 
       const priorCount = state.comments.filter((c) => c.projectId === proj.id).length;
+      const photoReference = document.getElementById("comment-photo-reference")?.value || "";
       const newComment = {
         id: "com-" + Date.now(),
         projectId: proj.id,
         authorId: currentUser.id,
         text,
+        mediaImageId: photoReference,
         createdAt: "Ara mateix",
         secondedBy: [],
         usefulnessRating: 0
@@ -1504,6 +1655,8 @@
 
     const currentUser = getCurrentUser();
     const isProjectOwner = proj.ownerId === currentUser.id;
+    const projectMediaImages = (Array.isArray(proj.mediaImages) ? proj.mediaImages : [])
+      .filter((image) => image && image.id && image.src);
     let comments = state.comments.filter((c) => c.projectId === proj.id);
 
     comments.sort((a, b) => {
@@ -1522,6 +1675,7 @@
         const author = getStudentById(c.authorId);
         const isSeconded = c.secondedBy.includes(currentUser.id);
         const canRate = isProjectOwner && c.authorId !== currentUser.id;
+        const referencedImage = projectMediaImages.find((image) => image.id === c.mediaImageId);
 
         const starsHtml = [1, 2, 3, 4, 5]
           .map((star) => {
@@ -1531,7 +1685,7 @@
           .join("");
 
         return `
-          <div class="comment-card">
+          <div class="comment-card" id="project-comment-${escapeHtml(c.id)}">
             <div class="comment-top">
               <div class="comment-author" style="cursor:pointer;" data-open-profile="${author.id}">
                 <img src="${escapeHtml(author.avatar)}" alt="${escapeHtml(author.name)}" />
@@ -1546,6 +1700,12 @@
               </div>
             </div>
             <p style="margin:0;font-size:13.5px;line-height:1.55;">${escapeHtml(c.text)}</p>
+            ${referencedImage ? `
+              <button type="button" class="comment-photo-reference" data-open-project-photo="${escapeHtml(referencedImage.id)}" data-project-id="${escapeHtml(proj.id)}">
+                <img src="${escapeHtml(referencedImage.src)}" alt="${escapeHtml(referencedImage.name || "Fotografia referenciada")}" />
+                <span>Fotografia referenciada: <strong>${escapeHtml(referencedImage.name || "Fotografia del projecte")}</strong></span>
+              </button>
+            ` : ""}
             <div class="comment-actions">
               <div class="comment-btn-group">
                 <button type="button" class="chip-action-btn ${isSeconded ? "active" : ""}" data-second-comment="${c.id}">
@@ -1553,7 +1713,7 @@
                 </button>
                 ${
                   c.authorId !== currentUser.id
-                    ? `<button type="button" class="chip-action-btn" data-private-reply="${c.authorId}" data-ref-project="${proj.id}" data-ref-label="Comentari a: ${escapeHtml(proj.title)}">
+                    ? `<button type="button" class="chip-action-btn" data-private-reply="${c.authorId}" data-ref-project="${proj.id}" data-ref-comment="${c.id}" data-ref-photo="${referencedImage ? escapeHtml(referencedImage.id) : ""}" data-ref-photo-label="${referencedImage ? escapeHtml(referencedImage.name || "Fotografia del projecte") : ""}" data-ref-label="Comentari a: ${escapeHtml(proj.title)}">
                         Respondre en privat
                       </button>`
                     : ""
@@ -1615,7 +1775,10 @@
         startOrOpenConversation(btn.dataset.privateReply, {
           type: "project",
           id: btn.dataset.refProject,
-          label: btn.dataset.refLabel
+          label: btn.dataset.refLabel,
+          commentId: btn.dataset.refComment,
+          mediaImageId: btn.dataset.refPhoto || "",
+          mediaImageLabel: btn.dataset.refPhotoLabel || ""
         });
       });
     });
@@ -1872,7 +2035,8 @@
             const isOut = m.senderId === currentUser.id;
             return `
               <div class="msg-bubble ${isOut ? "outgoing" : "incoming"}">
-                ${m.ref ? `<div class="msg-context-ref" ${m.ref.id ? `data-open-project="${m.ref.id}"` : ""}>&#128206; ${escapeHtml(m.ref.label)}</div>` : ""}
+                ${m.ref ? `<div class="msg-context-ref" ${m.ref.id ? `data-open-project="${escapeHtml(m.ref.id)}"` : ""} ${m.ref.commentId ? `data-open-project-comment="${escapeHtml(m.ref.commentId)}"` : ""}>&#128206; ${escapeHtml(m.ref.label)}</div>` : ""}
+                ${m.ref?.mediaImageId ? `<button type="button" class="msg-context-photo-ref" data-open-project-photo="${escapeHtml(m.ref.mediaImageId)}" data-project-id="${escapeHtml(m.ref.id)}">&#128247; Foto: ${escapeHtml(m.ref.mediaImageLabel || "Fotografia del projecte")}</button>` : ""}
                 <div>${escapeHtml(m.text)}</div>
                 <span class="msg-time">${escapeHtml(m.timestamp)}</span>
               </div>
@@ -1884,7 +2048,7 @@
       ${
         pendingMessageReference
           ? `<div style="padding:8px 16px;background:var(--bg-subtle);font-size:12px;display:flex;justify-content:space-between;align-items:center;">
-              <span>Referència adjunta: <strong>${escapeHtml(pendingMessageReference.label)}</strong></span>
+              <span>Referència adjunta: <strong>${escapeHtml(pendingMessageReference.label)}</strong>${pendingMessageReference.mediaImageLabel ? ` · Foto: ${escapeHtml(pendingMessageReference.mediaImageLabel)}` : ""}</span>
               <button type="button" class="text-link-btn" id="clear-msg-ref">Treure</button>
             </div>`
           : ""
@@ -2241,9 +2405,15 @@
     document.getElementById("proj-media-url").value = proj.mediaUrl || "";
     document.getElementById("proj-feedback-type").value = proj.feedbackType;
     document.getElementById("proj-questions").value = proj.questions || "";
-    document.getElementById("proj-seeking-collaborator").checked = !!proj.seekingCollaborator;
-    document.getElementById("proj-collab-role-wrap").hidden = !proj.seekingCollaborator;
+    document.getElementById("proj-seeking-collaborator").checked =
+      proj.teamType === "group" && !!proj.seekingCollaborator;
     document.getElementById("proj-collab-role").value = proj.collaboratorRole || "Dissenyador/a gràfic/a";
+    syncProjectTeamFields();
+    projectMediaUploadGeneration += 1;
+    projectMediaUploadPending = false;
+    document.getElementById("proj-media-images").disabled = false;
+    uploadedProjectMediaImages = (proj.mediaImages || []).map((image) => ({ ...image }));
+    renderProjectMediaPreview();
     uploadedProjectCover = proj.cover || "";
     document.getElementById("proj-cover-file").value = "";
     setProjectCropSource(proj.cover || "", { dirty: false, framed: isProjectCoverFramed(proj) });
@@ -2289,6 +2459,8 @@
   // 11. EVENT LISTENERS BOOTSTRAP
   // ========================================================================
   function bindGlobalEvents() {
+    window.addEventListener("resize", updateProjectDetailStickyTop, { passive: true });
+
     const editProfileForm = document.getElementById("edit-profile-form");
     if (editProfileForm) {
       const avatarInput = document.getElementById("edit-profile-avatar");
@@ -2442,6 +2614,12 @@
         document.getElementById("proj-deadline").value = daysFromNow(10);
         uploadedProjectCover = "";
         setProjectCropSource("");
+        syncProjectTeamFields();
+        projectMediaUploadGeneration += 1;
+        projectMediaUploadPending = false;
+        document.getElementById("proj-media-images").disabled = false;
+        uploadedProjectMediaImages = [];
+        renderProjectMediaPreview();
         setProjectWizardStep(1);
         document.getElementById("proj-registered-participant").innerHTML =
           '<option value="">Selecciona un estudiant registrat</option>' +
@@ -2570,6 +2748,32 @@
 
     // Delegated clicks for Project Cards & Student Profiles
     document.addEventListener("click", (e) => {
+      const photoRef = e.target.closest("[data-open-project-photo]");
+      if (photoRef) {
+        navigateTo("project", photoRef.dataset.projectId);
+        requestAnimationFrame(() => {
+          const target = document.getElementById(`project-media-${photoRef.dataset.openProjectPhoto}`);
+          if (!target) return;
+          target.scrollIntoView({ behavior: "smooth", block: "center" });
+          target.classList.add("reference-highlight");
+          window.setTimeout(() => target.classList.remove("reference-highlight"), 1800);
+        });
+        return;
+      }
+
+      const commentRef = e.target.closest("[data-open-project-comment]");
+      if (commentRef) {
+        navigateTo("project", commentRef.dataset.openProject);
+        requestAnimationFrame(() => {
+          const target = document.getElementById(`project-comment-${commentRef.dataset.openProjectComment}`);
+          if (!target) return;
+          target.scrollIntoView({ behavior: "smooth", block: "center" });
+          target.classList.add("reference-highlight");
+          window.setTimeout(() => target.classList.remove("reference-highlight"), 1800);
+        });
+        return;
+      }
+
       const projTrigger = e.target.closest("[data-open-project]");
       if (projTrigger) {
         navigateTo("project", projTrigger.dataset.openProject);
@@ -2582,16 +2786,10 @@
     });
 
     const teamTypeSelect = document.getElementById("proj-team-type");
-    const participantsWrap = document.getElementById("proj-participants-wrap");
     const collabCheck = document.getElementById("proj-seeking-collaborator");
-    const collabRoleWrap = document.getElementById("proj-collab-role-wrap");
 
-    teamTypeSelect?.addEventListener("change", () => {
-      participantsWrap.hidden = teamTypeSelect.value !== "group";
-    });
-    collabCheck?.addEventListener("change", () => {
-      collabRoleWrap.hidden = !collabCheck.checked;
-    });
+    teamTypeSelect?.addEventListener("change", syncProjectTeamFields);
+    collabCheck?.addEventListener("change", syncProjectTeamFields);
 
     document.getElementById("proj-registered-participant")?.addEventListener("change", (event) => {
       if (!event.target.value) return;
@@ -2632,6 +2830,37 @@
     document.getElementById("proj-cover")?.addEventListener("change", (event) => {
       uploadedProjectCover = event.target.value.trim();
       setProjectCropSource(uploadedProjectCover);
+    });
+
+    document.getElementById("proj-media-images")?.addEventListener("change", async (event) => {
+      const input = event.currentTarget;
+      const files = Array.from(input.files || []);
+      if (!files.length) return;
+
+      const generation = ++projectMediaUploadGeneration;
+      projectMediaUploadPending = true;
+      input.disabled = true;
+      try {
+        for (const file of files) {
+          if (generation !== projectMediaUploadGeneration) return;
+          try {
+            const image = await readProjectMediaImage(file);
+            if (generation !== projectMediaUploadGeneration) return;
+            uploadedProjectMediaImages.push(image);
+            renderProjectMediaPreview();
+          } catch (error) {
+            if (generation !== projectMediaUploadGeneration) return;
+            console.error(`No s’ha pogut afegir la fotografia "${file.name}".`, error);
+            showToast(`No s’ha pogut afegir "${file.name}". Comprova que sigui una imatge vàlida.`);
+          }
+        }
+      } finally {
+        if (generation === projectMediaUploadGeneration) {
+          projectMediaUploadPending = false;
+          input.disabled = false;
+          input.value = "";
+        }
+      }
     });
 
     document.getElementById("proj-aspect")?.addEventListener("change", () => {
@@ -2698,11 +2927,16 @@
     // Publish / Edit Project Form Submission
     document.getElementById("publish-project-form").addEventListener("submit", (e) => {
       e.preventDefault();
-      if (projectWizardStep < 5) {
+      if (projectWizardStep < 6) {
         advanceProjectWizard();
         return;
       }
       const errBox = document.getElementById("proj-form-error");
+      if (projectMediaUploadPending) {
+        errBox.textContent = "Espera que s’acabin de carregar les fotografies.";
+        errBox.classList.remove("hidden");
+        return;
+      }
       const title = document.getElementById("proj-title").value.trim();
       const description = document.getElementById("proj-description").value.trim();
       const briefing = document.getElementById("proj-briefing").value.trim();
@@ -2750,8 +2984,10 @@
 
       const category = document.getElementById("proj-category").value;
       const coverInput = document.getElementById("proj-cover").value.trim();
+      const teamType = document.getElementById("proj-team-type").value;
+      const seekingCollaborator = teamType === "group" && document.getElementById("proj-seeking-collaborator").checked;
       const participantsRaw = document.getElementById("proj-participants").value.trim();
-      const participants = participantsRaw
+      const participants = teamType === "group" && participantsRaw
         ? participantsRaw.split(",").map((s) => s.trim()).filter(Boolean)
         : [currentUser.name];
       if (projectCrop.source && !projectCrop.image) {
@@ -2782,7 +3018,7 @@
         const existing = state.projects.find((p) => p.id === editId);
         if (existing) {
           const stageChanged = existing.stage !== document.getElementById("proj-stage").value;
-          Object.assign(existing, {
+          const projectUpdates = {
             title,
             category,
             aspect,
@@ -2795,23 +3031,31 @@
             year: document.getElementById("proj-year").value,
             deadline,
             stage: document.getElementById("proj-stage").value,
-            teamType: document.getElementById("proj-team-type").value,
+            teamType,
             participants,
             mediaUrl: document.getElementById("proj-media-url").value.trim(),
+            mediaImages: uploadedProjectMediaImages.map((image) => ({ ...image })),
             feedbackType,
             questions: document.getElementById("proj-questions").value.trim(),
             imageSize: automaticImageSize,
-            seekingCollaborator: document.getElementById("proj-seeking-collaborator").checked,
-            collaboratorRole: document.getElementById("proj-seeking-collaborator").checked
+            seekingCollaborator,
+            collaboratorRole: seekingCollaborator
               ? document.getElementById("proj-collab-role").value
               : "",
             imageSize: automaticImageSize
-          });
+          };
+          const previousProject = { ...existing };
+          Object.assign(existing, projectUpdates);
+          if (!saveState()) {
+            Object.assign(existing, previousProject);
+            errBox.textContent = "No s’ha pogut desar el projecte perquè l’emmagatzematge del navegador és ple.";
+            errBox.classList.remove("hidden");
+            return;
+          }
           if (stageChanged) {
             awardPoints(currentUser.id, `stage-${existing.id}-${existing.stage}`, 2, "Actualització de fase del projecte");
           }
         }
-        saveState();
         closeModal("modal-publish-project");
         renderProjectDetailView();
         showToast("Projecte actualitzat correctament.");
@@ -2833,15 +3077,16 @@
         deadline,
         createdAt: new Date().toISOString().split("T")[0],
         stage: document.getElementById("proj-stage").value,
-        teamType: document.getElementById("proj-team-type").value,
+        teamType,
         participants,
         ownerId: currentUser.id,
         status: "In progress",
         mediaUrl: document.getElementById("proj-media-url").value.trim(),
+        mediaImages: uploadedProjectMediaImages.map((image) => ({ ...image })),
         feedbackType,
         questions: document.getElementById("proj-questions").value.trim(),
-        seekingCollaborator: document.getElementById("proj-seeking-collaborator").checked,
-        collaboratorRole: document.getElementById("proj-seeking-collaborator").checked
+        seekingCollaborator,
+        collaboratorRole: seekingCollaborator
           ? document.getElementById("proj-collab-role").value
           : "",
         imageSize: automaticImageSize
@@ -2849,6 +3094,13 @@
 
       state.projects.unshift(newProject);
       currentUser.projectsCount += 1;
+      if (!saveState()) {
+        state.projects.shift();
+        currentUser.projectsCount -= 1;
+        errBox.textContent = "No s’ha pogut desar el projecte perquè l’emmagatzematge del navegador és ple.";
+        errBox.classList.remove("hidden");
+        return;
+      }
       awardPoints(currentUser.id, `publish-${newProject.id}`, 10, `Nou projecte publicat: ${title}`);
       if (newProject.questions && newProject.mediaUrl) {
         awardPoints(currentUser.id, `complete-${newProject.id}`, 5, "Briefing i material multimèdia complets");

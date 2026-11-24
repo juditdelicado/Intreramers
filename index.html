@@ -544,13 +544,14 @@
       <form id="publish-project-form" class="modal-form" novalidate>
         <input type="hidden" id="proj-edit-id" />
         <div class="project-wizard-progress" aria-live="polite">
-          <span id="proj-wizard-step-label">Pas 1 de 5 · Nom</span>
+          <span id="proj-wizard-step-label">Pas 1 de 6 · Nom</span>
           <div class="project-wizard-progress-track" aria-hidden="true">
             <span data-wizard-progress="1" class="is-active"></span>
             <span data-wizard-progress="2"></span>
             <span data-wizard-progress="3"></span>
             <span data-wizard-progress="4"></span>
             <span data-wizard-progress="5"></span>
+            <span data-wizard-progress="6"></span>
           </div>
         </div>
         <div class="form-error hidden" id="proj-form-error" role="alert"></div>
@@ -617,7 +618,6 @@
             <label for="proj-briefing">Briefing creatiu i objectius *</label>
             <textarea id="proj-briefing" rows="2" required placeholder="Quines referències visuals, estil o objectius comunicatius segueix?"></textarea>
           </div>
-
         </section>
 
         <section class="project-wizard-step" data-project-step="4" hidden>
@@ -667,7 +667,7 @@
             </div>
           </div>
 
-          <div class="form-group" id="proj-participants-wrap">
+          <div class="form-group" id="proj-participants-wrap" hidden>
             <label for="proj-participants">Participants del grup (separats per comes)</label>
             <input type="text" id="proj-participants" placeholder="Ex: Laia Puig, Pol Vila" />
             <label for="proj-registered-participant">Afegir participant registrat</label>
@@ -677,10 +677,12 @@
           </div>
 
           <div class="form-grid-2">
-            <label class="checkbox-inline">
-              <input type="checkbox" id="proj-seeking-collaborator" />
-              <span>Busquem una persona que vulgui col·laborar</span>
-            </label>
+            <div id="proj-collaborator-option-wrap" hidden>
+              <label class="checkbox-inline">
+                <input type="checkbox" id="proj-seeking-collaborator" />
+                <span>Busquem una persona que vulgui col·laborar</span>
+              </label>
+            </div>
             <div class="form-group" id="proj-collab-role-wrap" hidden>
               <label for="proj-collab-role">Rol o ajuda necessària</label>
               <select id="proj-collab-role">
@@ -696,12 +698,24 @@
         </section>
 
         <section class="project-wizard-step" data-project-step="5" hidden>
-          <div class="form-section-title">5. Multimèdia i feedback</div>
+          <div class="form-section-title">5. Multimèdia</div>
+          <div class="form-group">
+            <label for="proj-media-images">Fotos del projecte</label>
+            <input id="proj-media-images" type="file" accept="image/*" multiple />
+            <small>Afegeix totes les fotos que vulguis. Es podran referenciar als comentaris del projecte.</small>
+          </div>
+          <div id="proj-media-images-preview" class="project-media-upload-preview"></div>
           <div class="form-grid-2">
             <div class="form-group">
               <label for="proj-media-url">Enllaç multimèdia (Vimeo, YouTube, Drive, PDF)</label>
               <input type="url" id="proj-media-url" placeholder="https://vimeo.com/..." />
             </div>
+          </div>
+        </section>
+
+        <section class="project-wizard-step" data-project-step="6" hidden>
+          <div class="form-section-title">6. Feedback</div>
+          <div class="form-grid-2">
             <div class="form-group">
               <label for="proj-feedback-type">Tipus de feedback buscat *</label>
               <input type="text" id="proj-feedback-type" required placeholder="Ex: Ritme de muntatge, etalonatge i mescla sonora" />
