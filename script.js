@@ -5,6 +5,7 @@
 
 (() => {
   const STORAGE_KEY = "eram_creative_network_v1";
+  const SESSION_KEY = "eram_creative_network_session";
 
   // Helper to generate relative ISO dates so deadlines stay realistic
   const daysFromNow = (offsetDays) => {
@@ -22,7 +23,7 @@
       {
         id: "stu-1",
         name: "Laia Puig",
-        email: "laia.puig@eram.cat",
+        email: "laia.puig@campus.eram.cat",
         year: "3r Curs",
         avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80",
         bio: "Direcció de fotografia i etalonatge digital. Apassionada pel cinema documental i la narrativa visual.",
@@ -36,7 +37,7 @@
       {
         id: "stu-2",
         name: "Pol Vila",
-        email: "pol.vila@eram.cat",
+        email: "pol.vila@campus.eram.cat",
         year: "4t Curs (TFG)",
         avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80",
         bio: "Disseny d'interfícies interactives, instal·lacions multimèdia i direcció d'art digital.",
@@ -50,7 +51,7 @@
       {
         id: "stu-3",
         name: "Clara Mas",
-        email: "clara.mas@eram.cat",
+        email: "clara.mas@campus.eram.cat",
         year: "2n Curs",
         avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=200&q=80",
         bio: "Disseny gràfic editorial, tipografia experimental i identitat visual per a projectes culturals.",
@@ -64,7 +65,7 @@
       {
         id: "stu-4",
         name: "Martí Serra",
-        email: "marti.serra@eram.cat",
+        email: "marti.serra@campus.eram.cat",
         year: "3r Curs",
         avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80",
         bio: "Modelatge 3D, entorns virtuals amb Unreal Engine 5 i animació de personatges.",
@@ -78,7 +79,7 @@
       {
         id: "stu-5",
         name: "Núria Bosch",
-        email: "nuria.bosch@eram.cat",
+        email: "nuria.bosch@campus.eram.cat",
         year: "1r Curs",
         avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=200&q=80",
         bio: "Fotografia analògica, retrat documental i exploració de llum natural.",
@@ -88,6 +89,156 @@
         commentsCount: 4,
         usefulCommentsCount: 2,
         secondedCount: 4
+      },
+      {
+        id: "stu-6",
+        name: "Marc Solà",
+        email: "marc.sola@campus.eram.cat",
+        year: "4t Curs (TFG)",
+        avatar: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=200&q=80",
+        bio: "Dissenyador gràfic i director d'art. Especialitzat en identitat visual i publicitat.",
+        interests: ["Disseny gràfic", "Branding", "Direcció d'art"],
+        points: 284,
+        projectsCount: 18,
+        commentsCount: 52,
+        usefulCommentsCount: 39,
+        secondedCount: 67,
+        activeSince: "2022"
+      },
+      {
+        id: "stu-7",
+        name: "Aina Roca",
+        email: "aina.roca@campus.eram.cat",
+        year: "4t Curs (TFG)",
+        avatar: "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=200&q=80",
+        bio: "Realitzadora i editora amb trajectòria en curtmetratges i vídeo musical.",
+        interests: ["Audiovisuals", "Muntatge", "Realització"],
+        points: 267,
+        projectsCount: 16,
+        commentsCount: 48,
+        usefulCommentsCount: 35,
+        secondedCount: 59,
+        activeSince: "2022"
+      },
+      {
+        id: "stu-8",
+        name: "Oriol Ferrer",
+        email: "oriol.ferrer@campus.eram.cat",
+        year: "3r Curs",
+        avatar: "https://images.unsplash.com/photo-1507591064344-4c6ce005b128?auto=format&fit=crop&w=200&q=80",
+        bio: "Creative coder i dissenyador interactiu. Desenvolupa instal·lacions i experiències digitals.",
+        interests: ["UI/UX", "Creative Coding", "TouchDesigner"],
+        points: 192,
+        projectsCount: 11,
+        commentsCount: 34,
+        usefulCommentsCount: 24,
+        secondedCount: 42,
+        activeSince: "2023"
+      },
+      {
+        id: "stu-9",
+        name: "Ivet Torres",
+        email: "ivet.torres@campus.eram.cat",
+        year: "3r Curs",
+        avatar: "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=200&q=80",
+        bio: "Fotògrafa documental i directora de fotografia de produccions independents.",
+        interests: ["Fotografia", "Documental", "Direcció de fotografia"],
+        points: 176,
+        projectsCount: 9,
+        commentsCount: 29,
+        usefulCommentsCount: 21,
+        secondedCount: 38,
+        activeSince: "2023"
+      },
+      {
+        id: "stu-10",
+        name: "Èric Vidal",
+        email: "eric.vidal@campus.eram.cat",
+        year: "2n Curs",
+        avatar: "https://images.unsplash.com/photo-1504257432389-52343af06ae3?auto=format&fit=crop&w=200&q=80",
+        bio: "Artista 3D i generalista digital centrat en animació i entorns virtuals.",
+        interests: ["3D", "Animació", "VFX"],
+        points: 121,
+        projectsCount: 7,
+        commentsCount: 20,
+        usefulCommentsCount: 13,
+        secondedCount: 26,
+        activeSince: "2024"
+      },
+      {
+        id: "stu-11",
+        name: "Laura Martí",
+        email: "laura.marti@campus.eram.cat",
+        year: "2n Curs",
+        avatar: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=200&q=80",
+        bio: "Il·lustradora i dissenyadora editorial amb experiència en identitats culturals.",
+        interests: ["Il·lustració", "Editorial", "Tipografia"],
+        points: 98,
+        projectsCount: 6,
+        commentsCount: 17,
+        usefulCommentsCount: 10,
+        secondedCount: 19,
+        activeSince: "2024"
+      },
+      {
+        id: "stu-12",
+        name: "Pau Almendros",
+        email: "pau.almendros@campus.eram.cat",
+        year: "1r Curs",
+        avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80",
+        bio: "Muntador i dissenyador sonor interessat en narrativa experimental i vídeo.",
+        interests: ["Muntatge", "So", "Vídeo experimental"],
+        points: 72,
+        projectsCount: 4,
+        commentsCount: 12,
+        usefulCommentsCount: 8,
+        secondedCount: 14,
+        activeSince: "2025"
+      },
+      {
+        id: "stu-13",
+        name: "Marta Cuscó",
+        email: "marta.cusco@campus.eram.cat",
+        year: "1r Curs",
+        avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80",
+        bio: "Estudiant de fotografia i disseny gràfic centrada en retrat i cultura visual.",
+        interests: ["Fotografia", "Retrat", "Disseny gràfic"],
+        points: 58,
+        projectsCount: 3,
+        commentsCount: 9,
+        usefulCommentsCount: 6,
+        secondedCount: 11,
+        activeSince: "2025"
+      },
+      {
+        id: "stu-14",
+        name: "Jan Pujol",
+        email: "jan.pujol@campus.eram.cat",
+        year: "Alumni",
+        avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80",
+        bio: "Alumni ERAM i productor audiovisual independent especialitzat en formats documentals.",
+        interests: ["Producció", "Documental", "Gestió creativa"],
+        points: 231,
+        projectsCount: 14,
+        commentsCount: 41,
+        usefulCommentsCount: 31,
+        secondedCount: 52,
+        activeSince: "2021"
+      },
+      {
+        id: "stu-15",
+        name: "Clàudia Valls",
+        email: "claudia.valls@campus.eram.cat",
+        year: "Alumni",
+        avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80",
+        bio: "Alumni ERAM i dissenyadora UX treballant en productes culturals i educatius.",
+        interests: ["UX", "Producte digital", "Accessibilitat"],
+        points: 204,
+        projectsCount: 12,
+        commentsCount: 37,
+        usefulCommentsCount: 28,
+        secondedCount: 46,
+        activeSince: "2022"
       }
     ],
     projects: [
@@ -516,6 +667,13 @@
 
   // Load or initialize state
   let state = loadState();
+  if (!state || !Array.isArray(state.students) || !Array.isArray(state.projects)) {
+    state = structuredClone(INITIAL_STATE);
+  }
+  const initialStudentIds = new Set(state.students.map((student) => student.id));
+  INITIAL_STATE.students.forEach((student) => {
+    if (!initialStudentIds.has(student.id)) state.students.push(student);
+  });
 
   function loadState() {
     try {
@@ -658,8 +816,45 @@
   // ========================================================================
   // 4. NAVIGATION & VIEW ROUTER
   // ========================================================================
+  function resetDiscoveryFilters() {
+    ui.selectedCategory = "General";
+    ui.searchQuery = "";
+    ui.visibleCount = 12;
+    ui.filters = { subject: "", professor: "", year: "", stage: "", teamType: "", status: "active", urgentOnly: false };
+
+    const searchInput = document.getElementById("global-search-input");
+    const searchClear = document.getElementById("search-clear-btn");
+    if (searchInput) searchInput.value = "";
+    if (searchClear) searchClear.classList.add("hidden");
+
+    [
+      ["filter-subject", "subject"],
+      ["filter-professor", "professor"],
+      ["filter-year", "year"],
+      ["filter-stage", "stage"],
+      ["filter-team", "teamType"],
+      ["filter-status", "status"]
+    ].forEach(([elId, key]) => {
+      const element = document.getElementById(elId);
+      if (element) element.value = ui.filters[key];
+    });
+
+    const urgentFilter = document.getElementById("filter-urgent-only");
+    if (urgentFilter) urgentFilter.checked = false;
+
+    const advancedPanel = document.getElementById("advanced-filters-panel");
+    if (advancedPanel) advancedPanel.classList.add("hidden");
+
+    document.querySelectorAll("[data-category]").forEach((button) => {
+      const isGeneral = button.dataset.category === "General";
+      button.classList.toggle("active", isGeneral);
+      button.setAttribute("aria-selected", String(isGeneral));
+    });
+  }
+
   function navigateTo(route, payloadId = null) {
     ui.route = route;
+    if (route === "discover") resetDiscoveryFilters();
     if (route === "project" && payloadId) ui.activeProjectId = payloadId;
     if (route === "profile") ui.activeProfileId = payloadId || state.currentUserId;
     if (route === "messages" && payloadId) ui.activeConversationId = payloadId;
@@ -794,6 +989,12 @@
 
   function renderDiscoverView() {
     updateActiveFilterBadge();
+    const activeCategoryLabel = document.getElementById("active-category-label");
+    if (activeCategoryLabel) {
+      activeCategoryLabel.textContent = ui.filters.urgentOnly
+        ? "Prioritaris"
+        : ui.selectedCategory;
+    }
     const grid = document.getElementById("projects-masonry-grid");
     const empty = document.getElementById("projects-empty-state");
     const loadMoreWrap = document.getElementById("load-more-container");
@@ -1863,7 +2064,21 @@
     // Category Filter Buttons ("General" + Pills)
     document.querySelectorAll("[data-category]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        ui.selectedCategory = btn.dataset.category;
+        const isActiveCategory = ui.selectedCategory === btn.dataset.category;
+        if (btn.dataset.category === "General" && ui.filters.urgentOnly) {
+          ui.filters.urgentOnly = false;
+          const urgentFilter = document.getElementById("filter-urgent-only");
+          if (urgentFilter) urgentFilter.checked = false;
+        } else if (isActiveCategory && btn.dataset.category !== "General") {
+          ui.selectedCategory = "General";
+        } else {
+          ui.selectedCategory = btn.dataset.category;
+          if (ui.filters.urgentOnly) {
+            ui.filters.urgentOnly = false;
+            const urgentFilter = document.getElementById("filter-urgent-only");
+            if (urgentFilter) urgentFilter.checked = false;
+          }
+        }
         document.querySelectorAll("[data-category]").forEach((b) => {
           const isMatch = b.dataset.category === ui.selectedCategory;
           b.classList.toggle("active", isMatch);
@@ -1901,6 +2116,14 @@
 
     document.getElementById("filter-urgent-only").addEventListener("change", (e) => {
       ui.filters.urgentOnly = e.target.checked;
+      if (e.target.checked) {
+        ui.selectedCategory = "General";
+        document.querySelectorAll("[data-category]").forEach((b) => {
+          const isGeneral = b.dataset.category === "General";
+          b.classList.toggle("active", isGeneral);
+          b.setAttribute("aria-selected", String(isGeneral));
+        });
+      }
       renderDiscoverView();
     });
 
@@ -1911,7 +2134,12 @@
       ui.filters = { subject: "", professor: "", year: "", stage: "", teamType: "", status: "active", urgentOnly: false };
       filterBindings.forEach(([elId, key]) => (document.getElementById(elId).value = ui.filters[key]));
       document.getElementById("filter-urgent-only").checked = false;
-      document.querySelectorAll("[data-category]").forEach((b) => b.classList.toggle("active", b.dataset.category === "General"));
+      document.getElementById("advanced-filters-panel").classList.add("hidden");
+      document.querySelectorAll("[data-category]").forEach((b) => {
+        const isGeneral = b.dataset.category === "General";
+        b.classList.toggle("active", isGeneral);
+        b.setAttribute("aria-selected", String(isGeneral));
+      });
       renderDiscoverView();
     };
 
@@ -2132,8 +2360,8 @@
       const name = document.getElementById("reg-name").value.trim();
       const email = document.getElementById("reg-email").value.trim().toLowerCase();
 
-      if (!email.endsWith("@eram.cat")) {
-        errBox.textContent = "Només es permet el registre amb correu institucional @eram.cat.";
+      if (!email.endsWith("@campus.eram.cat")) {
+        errBox.textContent = "Només es permet el registre amb correu institucional @campus.eram.cat.";
         errBox.classList.remove("hidden");
         return;
       }
@@ -2164,7 +2392,206 @@
     });
   }
 
+  function getInitials(name) {
+    return name
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join("");
+  }
+
+  function makeInitialAvatar(name, color) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 240;
+    canvas.height = 240;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "700 82px Inter, Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(getInitials(name), 120, 126);
+    return canvas.toDataURL("image/png");
+  }
+
+  function showAuthPage() {
+    document.body.classList.remove("authenticated");
+    document.getElementById("auth-page").classList.remove("hidden");
+    document.getElementById("auth-start-view").classList.remove("hidden");
+    document.getElementById("auth-login-view").classList.add("hidden");
+    document.getElementById("auth-register-view").classList.add("hidden");
+  }
+
+  function enterAuthenticatedSession(userId) {
+    state.currentUserId = userId;
+    saveState();
+    localStorage.setItem(SESSION_KEY, userId);
+    document.body.classList.add("authenticated");
+    document.getElementById("auth-page").classList.add("hidden");
+    updateHeaderChrome();
+    navigateTo("discover");
+  }
+
+  function renderAuthExistingProfiles() {
+    const container = document.getElementById("auth-existing-list");
+    container.innerHTML = state.students
+      .map((student) => {
+        const isGenerated = student.avatar && student.avatar.startsWith("data:image");
+        const avatarHtml = isGenerated
+          ? `<span class="auth-existing-avatar" style="background:${escapeHtml(student.avatarColor || "#8f7cf6")}">${escapeHtml(getInitials(student.name))}</span>`
+          : `<img src="${escapeHtml(student.avatar)}" alt="" />`;
+        return `
+          <button type="button" class="auth-existing-card" data-auth-user="${student.id}">
+            ${avatarHtml}
+            <span>
+              <strong>${escapeHtml(student.name)}</strong>
+              <span>${escapeHtml(student.email)}</span>
+            </span>
+          </button>
+        `;
+      })
+      .join("");
+
+    container.querySelectorAll("[data-auth-user]").forEach((button) => {
+      button.addEventListener("click", () => enterAuthenticatedSession(button.dataset.authUser));
+    });
+  }
+
+  function bindAuthPageEvents() {
+    document.getElementById("auth-login-option").addEventListener("click", () => {
+      document.getElementById("auth-start-view").classList.add("hidden");
+      document.getElementById("auth-login-view").classList.remove("hidden");
+    });
+
+    document.getElementById("auth-create-option").addEventListener("click", () => {
+      document.getElementById("auth-start-view").classList.add("hidden");
+      document.getElementById("auth-register-view").classList.remove("hidden");
+    });
+
+    document.querySelectorAll("[data-auth-back]").forEach((button) => {
+      button.addEventListener("click", showAuthPage);
+    });
+
+    const firstName = document.getElementById("auth-first-name");
+    const lastName = document.getElementById("auth-last-name");
+    const colorInput = document.getElementById("auth-avatar-color");
+    const initials = document.getElementById("auth-avatar-initials");
+    const previewImage = document.getElementById("auth-avatar-image");
+    let uploadedAvatar = "";
+
+    const refreshPreview = () => {
+      const name = `${firstName.value.trim()} ${lastName.value.trim()}`.trim();
+      initials.textContent = name ? getInitials(name) : "IE";
+      document.getElementById("auth-avatar-preview").style.background = colorInput.value;
+      document.getElementById("auth-avatar-color-value").textContent = colorInput.value.toUpper();
+    };
+
+    firstName.addEventListener("input", refreshPreview);
+    lastName.addEventListener("input", refreshPreview);
+    colorInput.addEventListener("input", refreshPreview);
+
+    document.getElementById("auth-avatar-upload").addEventListener("change", (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        uploadedAvatar = reader.result;
+        previewImage.src = uploadedAvatar;
+        previewImage.hidden = false;
+        initials.hidden = true;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    document.querySelectorAll("input[name='auth-role']").forEach((radio) => {
+      radio.addEventListener("change", () => {
+        const alumni = radio.value === "alumni" && radio.checked;
+        document.getElementById("auth-year-label").textContent = alumni ? "Any de finalització *" : "Curs actual *";
+        document.getElementById("auth-subjects-label").textContent = alumni ? "Assignatures cursades" : "Assignatures matriculades";
+        if (alumni) {
+          document.getElementById("auth-year").innerHTML =
+            `<option value="Graduat 2026">Graduat 2026</option>` +
+            `<option value="Graduat 2025">Graduat 2025</option>` +
+            `<option value="Graduat 2024">Graduat 2024</option>` +
+            `<option value="Graduat abans de 2024">Graduat abans de 2024</option>`;
+        } else {
+          document.getElementById("auth-year").innerHTML =
+            `<option value="1r Curs">1r Curs</option>` +
+            `<option value="2n Curs">2n Curs</option>` +
+            `<option value="3r Curs">3r Curs</option>` +
+            `<option value="4t Curs (TFG)">4t Curs (TFG)</option>`;
+        }
+      });
+    });
+
+    document.getElementById("auth-register-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const firstName = document.getElementById("auth-first-name").value.trim();
+      const lastName = document.getElementById("auth-last-name").value.trim();
+      const email = document.getElementById("auth-email").value.trim().toLowerCase();
+      const errBox = document.getElementById("auth-form-error");
+      const fullName = `${firstName} ${lastName}`.trim();
+
+      if (!email.endsWith("@campus.eram.cat")) {
+        errBox.textContent = "Només es permet el correu institucional @campus.eram.cat.";
+        errBox.classList.remove("hidden");
+        return;
+      }
+
+      errBox.classList.add("hidden");
+      const role = document.querySelector("input[name='auth-role']:checked").value;
+      const color = document.getElementById("auth-avatar-color").value;
+      const subjects = Array.from(document.querySelectorAll(".auth-subject-options input:checked"))
+        .map((input) => input.value);
+      const avatar = uploadedAvatar || makeInitialAvatar(fullName, color);
+      const newStudent = {
+        id: "stu-" + Date.now(),
+        name: fullName,
+        email,
+        role,
+        year: document.getElementById("auth-year").value,
+        avatar,
+        avatarColor: color,
+        subjects,
+        bio: role === "alumni"
+          ? "Alumni del Grau en Comunicació Audiovisual i Multimèdia a l'ERAM."
+          : "Estudiant del Grau en Comunicació Audiovisual i Multimèdia a l'ERAM.",
+        interests: subjects.length ? subjects : ["Audiovisuals"],
+        points: 10,
+        projectsCount: 0,
+        commentsCount: 0,
+        usefulCommentsCount: 0,
+        secondedCount: 0
+      };
+
+      state.students.push(newStudent);
+      enterAuthenticatedSession(newStudent.id);
+      showToast(`Benvingut/da a ERAM Creative Network, ${fullName}!`);
+    });
+
+    document.getElementById("logout-btn").addEventListener("click", () => {
+      localStorage.removeItem(SESSION_KEY);
+      closeAllPopovers();
+      renderAuthExistingProfiles();
+      showAuthPage();
+    });
+  }
+
   // Initialize Application
+  const savedSession = localStorage.getItem(SESSION_KEY);
+  const hasSavedSession = savedSession && state.students.some((student) => student.id === savedSession);
+  renderAuthExistingProfiles();
+  bindAuthPageEvents();
+  if (!hasSavedSession) {
+    showAuthPage();
+  } else {
+    state.currentUserId = savedSession;
+    document.body.classList.add("authenticated");
+    document.getElementById("auth-page").classList.add("hidden");
+  }
   populateDynamicFilterOptions();
   updateHeaderChrome();
   bindGlobalEvents();
