@@ -1697,12 +1697,20 @@
     container.innerHTML = `
       <div class="page-container">
         <div class="profile-hero">
-          <img src="${escapeHtml(student.avatar)}" alt="${escapeHtml(student.name)}" class="profile-hero-avatar" />
+          <div class="profile-avatar-editor">
+            <img src="${escapeHtml(student.avatar)}" alt="${escapeHtml(student.name)}" class="profile-hero-avatar" id="profile-avatar-preview" />
+            ${student.id === state.currentUserId ? `
+              <label class="profile-avatar-upload" for="profile-avatar-upload" title="Canviar fotografia">
+                <input type="file" id="profile-avatar-upload" accept="image/*" />
+                <span>Canviar</span>
+              </label>
+            ` : ""}
+          </div>
           <div>
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
               <h1 class="page-title">${escapeHtml(student.name)}</h1>
               <span class="pill-tag">Nivell ${tier.level}: ${tier.name}</span>
-              <span class="pill-tag">Rànquing #${rank}</span>
+              <button type="button" class="pill-tag profile-ranking-link" data-route="leaderboard" style="border:0;cursor:pointer;">Rànquing #${rank}</button>
             </div>
             <p style="margin:4px 0 8px;color:var(--text-secondary);">${escapeHtml(student.year)} · ${escapeHtml(student.email)}</p>
             <p style="margin:0 0 10px;font-size:13.5px;">${escapeHtml(student.bio || "")}</p>
@@ -1752,6 +1760,29 @@
         </div>
       </div>
     `;
+
+    const rankingLink = container.querySelector(".profile-ranking-link");
+    if (rankingLink) {
+      rankingLink.addEventListener("click", () => navigateTo("leaderboard"));
+    }
+
+    const avatarUpload = container.querySelector("#profile-avatar-upload");
+    if (avatarUpload) {
+      avatarUpload.addEventListener("change", (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          student.avatar = reader.result;
+          saveState();
+          const preview = container.querySelector("#profile-avatar-preview");
+          if (preview) preview.src = reader.result;
+          updateHeaderChrome();
+          showToast("Fotografia de perfil actualitzada.");
+        };
+        reader.readAsDataURL(file);
+      });
+    }
   }
 
   function renderLeaderboardView() {
@@ -1907,37 +1938,6 @@
     openModal("modal-publish-project");
   }
 
-  function renderAuthSwitcher() {
-    const container = document.getElementById("student-switcher-list");
-    container.innerHTML = state.students
-      .map(
-        (stu) => `
-        <div class="switcher-card ${stu.id === state.currentUserId ? "active" : ""}" data-switch-user="${stu.id}">
-          <div style="display:flex;align-items:center;gap:10px;">
-            <img src="${escapeHtml(stu.avatar)}" alt="${escapeHtml(stu.name)}" class="nav-avatar" />
-            <div>
-              <strong style="font-size:13.5px;">${escapeHtml(stu.name)}</strong>
-              <span style="display:block;font-size:11.5px;color:var(--text-secondary);">${escapeHtml(stu.email)} · ${escapeHtml(stu.year)}</span>
-            </div>
-          </div>
-          <span class="pill-tag">${stu.points} pts</span>
-        </div>
-      `
-      )
-      .join("");
-
-    container.querySelectorAll("[data-switch-user]").forEach((card) => {
-      card.addEventListener("click", () => {
-        state.currentUserId = card.dataset.switchUser;
-        saveState();
-        updateHeaderChrome();
-        closeModal("modal-auth");
-        navigateTo(ui.route);
-        showToast(`Sessió iniciada com a ${getCurrentUser().name}`);
-      });
-    });
-  }
-
   // Modal & Popover Utilities
   function openModal(id) {
     closeAllPopovers();
@@ -1987,18 +1987,20 @@
 
     searchInput.addEventListener("input", (e) => {
       ui.searchQuery = e.target.value;
-      searchClear.classList.toggle("hidden", !ui.searchQuery);
+      if (searchClear) searchClear.classList.toggle("hidden", !ui.searchQuery);
       if (ui.route === "discover") renderDiscoverView();
       if (ui.route === "positions") renderPositionsView();
     });
 
-    searchClear.addEventListener("click", () => {
-      searchInput.value = "";
-      ui.searchQuery = "";
-      searchClear.classList.add("hidden");
-      if (ui.route === "discover") renderDiscoverView();
-      if (ui.route === "positions") renderPositionsView();
-    });
+    if (searchClear) {
+      searchClear.addEventListener("click", () => {
+        searchInput.value = "";
+        ui.searchQuery = "";
+        searchClear.classList.add("hidden");
+        if (ui.route === "discover") renderDiscoverView();
+        if (ui.route === "positions") renderPositionsView();
+      });
+    }
 
     // Dropdown Toggles (+ Create, Notifications, Profile)
     const toggleDropdown = (triggerId, menuId) => {
@@ -2015,6 +2017,7 @@
     toggleDropdown("create-menu-trigger", "create-dropdown");
     toggleDropdown("notif-menu-trigger", "notif-dropdown");
     toggleDropdown("profile-menu-trigger", "profile-dropdown");
+    toggleDropdown("platform-menu-trigger", "platform-dropdown");
 
     document.addEventListener("click", (e) => {
       if (!e.target.closest(".dropdown-anchor")) closeAllPopovers();
@@ -2050,16 +2053,30 @@
       });
     });
 
-    document.querySelectorAll("[data-action='open-auth-modal']").forEach((btn) => {
+    document.querySelectorAll("[data-action='open-settings']").forEach((btn) => {
       btn.addEventListener("click", () => {
-        renderAuthSwitcher();
-        openModal("modal-auth");
+        closeAllPopovers();
+        showToast("Configuració disponible des del teu perfil.");
+      });
+    });
+
+    document.querySelectorAll("[data-action='open-about']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        closeAllPopovers();
+        showToast("ERAM Creative Network — Escola ERAM.");
       });
     });
 
     document.querySelectorAll("[data-close-modal]").forEach((btn) => {
       btn.addEventListener("click", () => closeModal(btn.dataset.closeModal));
     });
+
+    const projectAspect = document.getElementById("proj-aspect");
+    if (projectAspect) {
+      projectAspect.addEventListener("change", () => {
+        document.getElementById("proj-custom-size").classList.toggle("hidden", projectAspect.value !== "custom");
+      });
+    }
 
     // Category Filter Buttons ("General" + Pills)
     document.querySelectorAll("[data-category]").forEach((btn) => {
@@ -2187,6 +2204,7 @@
       const editId = document.getElementById("proj-edit-id").value;
       const aspectMap = {
         portrait: "span-portrait",
+        tall: "span-tall",
         square: "span-square",
         landscape: "span-landscape",
         wide: "span-wide"
@@ -2199,6 +2217,13 @@
         "UI/UX": "https://images.unsplash.com/photo-1581291518857-4e27b48ff24e?auto=format&fit=crop&w=900&q=80",
         "3D": "https://images.unsplash.com/photo-1617791160505-6f00504e3519?auto=format&fit=crop&w=900&q=80"
       };
+
+      let aspect = aspectMap[document.getElementById("proj-aspect").value] || "span-portrait";
+      if (document.getElementById("proj-aspect").value === "custom") {
+        const width = document.getElementById("proj-custom-width").value;
+        const height = document.getElementById("proj-custom-height").value;
+        aspect = `span-custom span-custom-w${width} span-custom-h${height}`;
+      }
 
       const category = document.getElementById("proj-category").value;
       const coverInput = document.getElementById("proj-cover").value.trim();
@@ -2214,6 +2239,7 @@
           Object.assign(existing, {
             title,
             category,
+            aspect,
             description,
             briefing,
             cover: coverInput || existing.cover,
@@ -2243,7 +2269,7 @@
         id: "proj-" + Date.now(),
         title,
         category,
-        aspect: aspectMap[document.getElementById("proj-aspect").value] || "span-portrait",
+        aspect,
         cover: coverInput || defaultCovers[category],
         description,
         briefing,
@@ -2353,43 +2379,6 @@
     // Chat Search Filter
     document.getElementById("chat-search-input").addEventListener("input", () => renderMessagesView());
 
-    // Register new ERAM student
-    document.getElementById("register-student-form").addEventListener("submit", (e) => {
-      e.preventDefault();
-      const errBox = document.getElementById("reg-form-error");
-      const name = document.getElementById("reg-name").value.trim();
-      const email = document.getElementById("reg-email").value.trim().toLowerCase();
-
-      if (!email.endsWith("@campus.eram.cat")) {
-        errBox.textContent = "Només es permet el registre amb correu institucional @campus.eram.cat.";
-        errBox.classList.remove("hidden");
-        return;
-      }
-      errBox.classList.add("hidden");
-
-      const newStudent = {
-        id: "stu-" + Date.now(),
-        name,
-        email,
-        year: document.getElementById("reg-year").value,
-        avatar: "https://images.unsplash.com/photo-1527980965255-d3b416303d12?auto=format&fit=crop&w=200&q=80",
-        bio: "Estudiant del Grau en Comunicació Audiovisual i Multimèdia a l'ERAM.",
-        interests: [document.getElementById("reg-spec").value.trim() || "Audiovisuals"],
-        points: 10,
-        projectsCount: 0,
-        commentsCount: 0,
-        usefulCommentsCount: 0,
-        secondedCount: 0
-      };
-
-      state.students.push(newStudent);
-      state.currentUserId = newStudent.id;
-      saveState();
-      updateHeaderChrome();
-      closeModal("modal-auth");
-      navigateTo("discover");
-      showToast(`Benvingut/da a ERAM Creative Network, ${name}!`);
-    });
   }
 
   function getInitials(name) {
@@ -2437,6 +2426,7 @@
 
   function renderAuthExistingProfiles() {
     const container = document.getElementById("auth-existing-list");
+    if (!container) return;
     container.innerHTML = state.students
       .map((student) => {
         const isGenerated = student.avatar && student.avatar.startsWith("data:image");
@@ -2473,6 +2463,25 @@
 
     document.querySelectorAll("[data-auth-back]").forEach((button) => {
       button.addEventListener("click", showAuthPage);
+    });
+
+    document.getElementById("auth-login-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const email = document.getElementById("auth-login-email").value.trim().toLowerCase();
+      const password = document.getElementById("auth-login-password").value;
+      const error = document.getElementById("auth-login-error");
+      if (!email.endsWith("@campus.eram.cat") || !password) {
+        error.textContent = "Introdueix un correu @campus.eram.cat i la contrasenya.";
+        error.classList.remove("hidden");
+        return;
+      }
+      const existingUser = state.students.find((student) => student.email.toLowerCase() === email);
+      if (existingUser) {
+        enterAuthenticatedSession(existingUser.id);
+        return;
+      }
+      error.textContent = "No existeix cap compte amb aquest correu.";
+      error.classList.remove("hidden");
     });
 
     const firstName = document.getElementById("auth-first-name");

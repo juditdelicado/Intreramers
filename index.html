@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ERAM Creative Network — Grau en Comunicació Audiovisual i Multimèdia</title>
+  <link rel="icon" type="image/png" href="Logotip ERAM.png" />
+  <link rel="shortcut icon" type="image/png" href="Logotip ERAM.png" />
+  <link rel="apple-touch-icon" href="Logotip ERAM.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -14,6 +17,7 @@
   <section id="auth-page" class="auth-page hidden" aria-label="Accés a Intreramer">
     <div id="auth-start-view" class="auth-start-view">
       <img src="Logotip ERAM.png" alt="ERAM" class="auth-eram-logo" />
+      <img src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=900&q=85" alt="Estudiants ERAM treballant junts" class="auth-start-image" />
       <div class="auth-start-actions">
         <button type="button" id="auth-login-option" class="auth-start-primary">Iniciar sessió</button>
         <button type="button" id="auth-create-option" class="auth-start-secondary">Crear compte</button>
@@ -27,7 +31,18 @@
         <h1>Inicia la sessió</h1>
         <p>Selecciona un perfil existent.</p>
       </div>
-      <div id="auth-existing-list" class="auth-existing-list auth-login-list"></div>
+      <form id="auth-login-form" class="auth-login-form" autocomplete="off">
+        <div class="form-group">
+          <label for="auth-login-email">Correu institucional *</label>
+          <input type="email" id="auth-login-email" required autocomplete="off" placeholder="nom.cognoms@campus.eram.cat" />
+        </div>
+        <div class="form-group">
+          <label for="auth-login-password">Contrasenya *</label>
+          <input type="password" id="auth-login-password" required autocomplete="new-password" />
+        </div>
+        <div class="form-error hidden" id="auth-login-error"></div>
+        <button type="submit" class="auth-submit">Iniciar sessió</button>
+      </form>
     </div>
 
     <div id="auth-register-view" class="auth-card auth-mode-card hidden">
@@ -129,6 +144,19 @@
   <!-- TOP NAVIGATION BAR (Matches Reference Layout) -->
   <header class="top-nav" role="banner">
     <div class="nav-inner">
+      <div class="nav-brand-anchor dropdown-anchor">
+        <button type="button" class="nav-brand-trigger" id="platform-menu-trigger" aria-label="Configuració i informació de la plataforma" aria-expanded="false">
+          <img src="Logotip ERAM.png" alt="ERAM" />
+        </button>
+        <div class="popover-menu nav-brand-menu hidden" id="platform-dropdown" role="menu">
+          <button type="button" class="popover-item" data-action="open-settings" role="menuitem">
+            <strong>Configuració</strong>
+          </button>
+          <button type="button" class="popover-item" data-action="open-about" role="menuitem">
+            <strong>About Us</strong>
+          </button>
+        </div>
+      </div>
       <!-- LEFT PILL CONTAINER -->
       <nav class="nav-pill nav-left" aria-label="Navegació principal">
         <button type="button" class="nav-icon-btn active" data-route="discover" title="Descobrir projectes" aria-label="Descobrir projectes">
@@ -143,17 +171,25 @@
         </button>
 
         <button type="button" class="nav-icon-btn" data-route="positions" title="Posicions obertes i col·laboracions" aria-label="Posicions obertes">
-          <!-- Minimalist Calendar / Open Roles Board Icon matching screenshot -->
+          <!-- Briefcase / Open Roles Icon -->
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="4" y="5" width="16" height="15" rx="2.5"/>
-            <line x1="8" y1="3.5" x2="8" y2="6.5"/>
-            <line x1="16" y1="3.5" x2="16" y2="6.5"/>
-            <circle cx="9" cy="11" r="0.9" fill="currentColor"/>
-            <circle cx="15" cy="11" r="0.9" fill="currentColor"/>
-            <circle cx="9" cy="15.5" r="0.9" fill="currentColor"/>
-            <circle cx="15" cy="15.5" r="0.9" fill="currentColor"/>
+            <rect x="3" y="7" width="18" height="12" rx="2"/>
+            <path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/>
+            <path d="M3 12h18"/>
+            <path d="M10 12v2h4v-2"/>
           </svg>
           <span class="nav-label-mobile">Posicions</span>
+        </button>
+
+        <button type="button" class="nav-icon-btn" data-route="leaderboard" title="Rànquings" aria-label="Rànquings">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 21h8"/>
+            <path d="M12 17v4"/>
+            <path d="M7 4h10v4a5 5 0 0 1-10 0V4z"/>
+            <path d="M7 6H4v1a4 4 0 0 0 4 4"/>
+            <path d="M17 6h3v1a4 4 0 0 1-4 4"/>
+          </svg>
+          <span class="nav-label-mobile">Rànquings</span>
         </button>
 
         <button type="button" class="nav-icon-btn" data-route="messages" title="Missatges privats" aria-label="Missatges privats">
@@ -179,7 +215,6 @@
             aria-label="Cerca projectes, estudiants, assignatures o rols"
             autocomplete="off"
           />
-          <button type="button" id="search-clear-btn" class="search-clear hidden" aria-label="Esborrar cerca">&times;</button>
         </div>
       </div>
 
@@ -236,9 +271,7 @@
             <div class="popover-divider"></div>
             <button type="button" class="popover-item" data-route="profile" role="menuitem">El meu perfil i portafoli</button>
             <button type="button" class="popover-item" data-route="leaderboard" role="menuitem">Rànquing i reputació ERAM</button>
-            <button type="button" class="popover-item" data-route="messages" role="menuitem">Missatges privats</button>
             <div class="popover-divider"></div>
-            <button type="button" class="popover-item" data-action="open-auth-modal" role="menuitem">Canviar d'estudiant / Sessió</button>
             <button type="button" class="popover-item" id="logout-btn" role="menuitem">Tancar sessió</button>
           </div>
         </div>
@@ -493,10 +526,30 @@
           <div class="form-group">
             <label for="proj-aspect">Proporció visual al mur</label>
             <select id="proj-aspect">
-              <option value="portrait">Vertical (Retrat 3:4)</option>
+              <option value="portrait">Vertical (3:4)</option>
+              <option value="tall">Alta (1:2)</option>
               <option value="square">Quadrada (1:1)</option>
               <option value="landscape">Apaïsada (4:3)</option>
-              <option value="wide">Panoràmica ampla (2 columnes)</option>
+              <option value="wide">Panoràmica (16:9)</option>
+              <option value="custom">Personalitzat</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-grid-2 hidden" id="proj-custom-size">
+          <div class="form-group">
+            <label for="proj-custom-width">Amplada (columns)</label>
+            <select id="proj-custom-width">
+              <option value="1">1 columna</option>
+              <option value="2">2 columnes</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="proj-custom-height">Alçada</label>
+            <select id="proj-custom-height">
+              <option value="11">Petita</option>
+              <option value="14">Mitjana</option>
+              <option value="16">Alta</option>
+              <option value="20">Molt alta</option>
             </select>
           </div>
         </div>
@@ -710,53 +763,6 @@
           <button type="submit" class="btn-primary">Enviar candidatura</button>
         </div>
       </form>
-    </div>
-  </div>
-
-  <!-- MODAL: AUTH / STUDENT ACCOUNT SWITCHER -->
-  <div class="modal-backdrop hidden" id="modal-auth" role="dialog" aria-modal="true" aria-labelledby="modal-auth-title">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h2 id="modal-auth-title">Compte d'estudiant ERAM</h2>
-        <button type="button" class="modal-close-btn" data-close-modal="modal-auth" aria-label="Tancar">&times;</button>
-      </div>
-      <div class="modal-form">
-        <p class="modal-subtitle">Selecciona un perfil d'estudiant verificat (<code>@campus.eram.cat</code>) per provar la plataforma o registra un compte nou.</p>
-        <div id="student-switcher-list" class="switcher-list"></div>
-        <div class="popover-divider"></div>
-        <form id="register-student-form">
-          <div class="form-section-title">Nou registre d'estudiant ERAM</div>
-          <div class="form-grid-2">
-            <div class="form-group">
-              <label for="reg-name">Nom complet *</label>
-              <input type="text" id="reg-name" required placeholder="Ex: Júlia Soler" />
-            </div>
-            <div class="form-group">
-              <label for="reg-email">Correu @campus.eram.cat *</label>
-              <input type="email" id="reg-email" required placeholder="julia.soler@campus.eram.cat" />
-            </div>
-          </div>
-          <div class="form-grid-2">
-            <div class="form-group">
-              <label for="reg-year">Curs acadèmic</label>
-              <select id="reg-year">
-                <option value="1r Curs">1r Curs</option>
-                <option value="2n Curs">2n Curs</option>
-                <option value="3r Curs">3r Curs</option>
-                <option value="4t Curs (TFG)">4t Curs (TFG)</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="reg-spec">Especialització</label>
-              <input type="text" id="reg-spec" placeholder="Ex: Direcció i Muntatge" />
-            </div>
-          </div>
-          <div class="form-error hidden" id="reg-form-error"></div>
-          <div class="modal-actions">
-            <button type="submit" class="btn-primary">Crear compte i iniciar sessió</button>
-          </div>
-        </form>
-      </div>
     </div>
   </div>
 

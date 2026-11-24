@@ -84,6 +84,14 @@ body:not(.authenticated) .app-main {
   gap: 52px;
 }
 
+.auth-start-image {
+  width: 100%;
+  max-height: 220px;
+  border-radius: 18px;
+  object-fit: cover;
+  box-shadow: 0 16px 44px rgba(22, 22, 22, 0.12);
+}
+
 .auth-eram-logo {
   width: min(280px, 68vw);
   max-height: 180px;
@@ -422,6 +430,34 @@ body:not(.authenticated) .app-main {
   display: none !important;
 }
 
+.nav-brand-anchor {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.nav-brand-trigger {
+  width: 46px;
+  height: 46px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  padding: 7px;
+  display: grid;
+  place-items: center;
+}
+
+.nav-brand-trigger img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.nav-brand-menu {
+  top: 54px;
+  left: 0;
+}
+
 /* ==========================================================================
    1. TOP NAVIGATION BAR (Matches Reference Proportions & 3-Pill Structure)
    ========================================================================== */
@@ -439,7 +475,7 @@ body:not(.authenticated) .app-main {
   max-width: var(--container-max);
   margin: 0 auto;
   display: grid;
-  grid-template-columns: 1fr minmax(260px, 430px) 1fr;
+  grid-template-columns: auto 1fr minmax(260px, 430px) 1fr;
   align-items: center;
   gap: 16px;
 }
@@ -973,6 +1009,20 @@ body:not(.authenticated) .app-main {
   grid-column: span 2;
   grid-row: span 12;
 }
+
+.masonry-card.span-tall {
+  grid-column: span 1;
+  grid-row: span 16;
+}
+
+.masonry-card.span-custom-w2 {
+  grid-column: span 2;
+}
+
+.masonry-card.span-custom-h11 { grid-row: span 11; }
+.masonry-card.span-custom-h14 { grid-row: span 14; }
+.masonry-card.span-custom-h16 { grid-row: span 16; }
+.masonry-card.span-custom-h20 { grid-row: span 20; }
 
 .masonry-card img {
   width: 100%;
@@ -1673,6 +1723,43 @@ body:not(.authenticated) .app-main {
   object-fit: cover;
 }
 
+.profile-avatar-editor {
+  position: relative;
+  width: 84px;
+}
+
+.profile-avatar-upload {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 32px;
+  height: 32px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: #161616;
+  color: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font-size: 0;
+}
+
+.profile-avatar-upload::before {
+  content: "+";
+  font-size: 18px;
+  line-height: 1;
+}
+
+.profile-avatar-upload input {
+  display: none;
+}
+
+.profile-ranking-link {
+  border: 0;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
 .reputation-progress-bar {
   width: 100%;
   max-width: 340px;
@@ -1971,7 +2058,7 @@ body:not(.authenticated) .app-main {
   }
 
   .nav-inner {
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: 46px auto 1fr auto;
     gap: 10px;
   }
 
@@ -2005,6 +2092,11 @@ body:not(.authenticated) .app-main {
 @media (max-width: 680px) {
   .top-nav {
     padding: 10px 14px;
+  }
+
+  .nav-brand-trigger {
+    width: 40px;
+    height: 40px;
   }
 
   .auth-page {
