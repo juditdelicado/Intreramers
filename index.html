@@ -873,11 +873,6 @@
           <label for="edit-profile-email">Correu electrònic *</label>
           <input type="email" id="edit-profile-email" required />
         </div>
-        <div class="form-group">
-          <label for="edit-profile-avatar">Fotografia de perfil</label>
-          <input type="file" id="edit-profile-avatar" accept="image/*" />
-          <button type="button" class="text-link-btn" id="edit-profile-remove-avatar">Eliminar fotografia i tornar a les inicials</button>
-        </div>
         <div class="form-grid-2">
           <div class="form-group">
             <label for="edit-profile-password">Contrasenya nova</label>
@@ -887,6 +882,15 @@
             <label for="edit-profile-password-confirm">Confirma la contrasenya</label>
             <input type="password" id="edit-profile-password-confirm" minlength="8" autocomplete="new-password" />
           </div>
+        </div>
+        <div class="form-group">
+          <label for="edit-profile-avatar">Fotografia de perfil</label>
+          <input type="file" id="edit-profile-avatar" accept="image/*" />
+          <button type="button" class="text-link-btn" id="edit-profile-remove-avatar">Eliminar fotografia i tornar a les inicials</button>
+        </div>
+        <div class="form-group">
+          <label for="edit-profile-avatar-color">Color de les inicials</label>
+          <input type="color" id="edit-profile-avatar-color" value="#8f7cf6" />
         </div>
         <div class="form-error hidden" id="edit-profile-error"></div>
         <div class="modal-actions">

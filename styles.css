@@ -1795,6 +1795,27 @@ body:not(.authenticated) .app-main {
   width: 84px;
 }
 
+.profile-edit-action {
+  margin-top: 16px;
+}
+
+.profile-edit-link {
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 0;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.profile-edit-link:hover,
+.profile-edit-link:focus-visible {
+  color: var(--text-primary);
+}
+
 .profile-avatar-upload {
   position: absolute;
   right: -4px;
@@ -1808,6 +1829,7 @@ body:not(.authenticated) .app-main {
   display: grid;
   place-items: center;
   cursor: pointer;
+  padding: 0;
   font-size: 0;
 }
 
@@ -1819,6 +1841,20 @@ body:not(.authenticated) .app-main {
 
 .profile-avatar-upload input {
   display: none;
+}
+
+#edit-profile-remove-avatar {
+  display: inline-flex;
+  margin-top: 8px;
+  color: var(--accent-urgent);
+}
+
+#edit-profile-avatar-color {
+  width: 58px;
+  height: 38px;
+  border: 0;
+  padding: 0;
+  background: transparent;
 }
 
 .project-image-preview-wrap {

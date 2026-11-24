@@ -1792,10 +1792,9 @@
           <div class="profile-avatar-editor">
             <img src="${escapeHtml(student.avatar)}" alt="${escapeHtml(student.name)}" class="profile-hero-avatar" id="profile-avatar-preview" />
             ${student.id === state.currentUserId ? `
-              <label class="profile-avatar-upload" for="profile-avatar-upload" title="Canviar fotografia">
-                <input type="file" id="profile-avatar-upload" accept="image/*" />
-                <span>Canviar</span>
-              </label>
+              <button type="button" class="profile-avatar-upload" id="profile-edit-pencil" title="Editar perfil" aria-label="Editar perfil">
+                <span>Editar</span>
+              </button>
             ` : ""}
           </div>
           <div>
@@ -1803,13 +1802,17 @@
               <h1 class="page-title">${escapeHtml(student.name)}</h1>
               <button type="button" class="pill-tag profile-level-link" style="border:0;cursor:pointer;">Nivell ${tier.level}: ${tier.name}</button>
               <button type="button" class="pill-tag profile-ranking-link" data-route="leaderboard" style="border:0;cursor:pointer;">Rànquing #${rank}</button>
-              ${student.id === state.currentUserId ? `<button type="button" class="pill-tag" id="open-profile-edit" style="border:0;cursor:pointer;">Editar perfil</button>` : ""}
             </div>
             <p style="margin:4px 0 8px;color:var(--text-secondary);">${escapeHtml(student.year)} · ${escapeHtml(student.email)}</p>
             <p style="margin:0 0 10px;font-size:13.5px;">${escapeHtml(student.bio || "")}</p>
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
               ${(student.interests || []).map((tag) => `<button type="button" class="pill-tag subject-tag" data-subject="${escapeHtml(tag)}" style="border:0;cursor:pointer;">${escapeHtml(tag)}</button>`).join("")}
             </div>
+            ${student.id === state.currentUserId ? `
+              <div class="profile-edit-action">
+                <button type="button" class="profile-edit-link" id="open-profile-edit">Editar perfil</button>
+              </div>
+            ` : ""}
           </div>
           <div>
             <strong style="font-size:24px;display:block;">${student.points} pts</strong>
@@ -1896,33 +1899,19 @@
       });
     });
 
-    container.querySelector("#open-profile-edit")?.addEventListener("click", () => {
+    const openProfileEditor = () => {
       const nameParts = student.name.split(" ");
       document.getElementById("edit-profile-name").value = nameParts.shift() || "";
       document.getElementById("edit-profile-surname").value = nameParts.join(" ");
       document.getElementById("edit-profile-email").value = student.email;
+      document.getElementById("edit-profile-avatar-color").value = student.avatarColor || "#8f7cf6";
       document.getElementById("edit-profile-password").value = "";
       document.getElementById("edit-profile-password-confirm").value = "";
       openModal("modal-edit-profile");
-    });
+    };
 
-    const avatarUpload = container.querySelector("#profile-avatar-upload");
-    if (avatarUpload) {
-      avatarUpload.addEventListener("change", (event) => {
-        const file = event.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = () => {
-          student.avatar = reader.result;
-          saveState();
-          const preview = container.querySelector("#profile-avatar-preview");
-          if (preview) preview.src = reader.result;
-          updateHeaderChrome();
-          showToast("Fotografia de perfil actualitzada.");
-        };
-        reader.readAsDataURL(file);
-      });
-    }
+    container.querySelector("#open-profile-edit")?.addEventListener("click", openProfileEditor);
+    container.querySelector("#profile-edit-pencil")?.addEventListener("click", openProfileEditor);
   }
 
   function renderLeaderboardView() {
@@ -2144,11 +2133,24 @@
 
       document.getElementById("edit-profile-remove-avatar").addEventListener("click", () => {
         const student = getCurrentUser();
-        student.avatar = makeInitialAvatar(student.name, student.avatarColor || "#8f7cf6");
+        const color = document.getElementById("edit-profile-avatar-color").value;
+        student.avatar = makeInitialAvatar(student.name, color);
+        student.avatarColor = color;
         saveState();
         updateHeaderChrome();
         renderProfileView();
         showToast("Fotografia eliminada. S'estan mostrant les inicials.");
+      });
+
+      document.getElementById("edit-profile-avatar-color").addEventListener("change", (event) => {
+        const student = getCurrentUser();
+        student.avatarColor = event.target.value;
+        if (student.avatar?.startsWith("data:image/png")) {
+          student.avatar = makeInitialAvatar(student.name, event.target.value);
+          saveState();
+          updateHeaderChrome();
+          renderProfileView();
+        }
       });
 
       editProfileForm.addEventListener("submit", async (event) => {
@@ -2175,6 +2177,10 @@
         }
         student.name = `${name} ${surname}`.trim();
         student.email = email;
+        student.avatarColor = document.getElementById("edit-profile-avatar-color").value;
+        if (student.avatar?.startsWith("data:image/png")) {
+          student.avatar = makeInitialAvatar(student.name, student.avatarColor);
+        }
         saveState();
         closeModal("modal-edit-profile");
         updateHeaderChrome();
