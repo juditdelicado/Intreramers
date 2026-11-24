@@ -1242,6 +1242,8 @@
     let list = state.projects.filter((proj) => {
       const owner = getStudentById(proj.ownerId);
 
+      if (proj.archived) return false;
+
       // Category check
       if (ui.selectedCategory !== "General" && proj.category !== ui.selectedCategory) {
         return false;
@@ -1415,6 +1417,37 @@
     const projectComments = state.comments.filter((c) => c.projectId === proj.id);
     const projectMediaImages = (Array.isArray(proj.mediaImages) ? proj.mediaImages : [])
       .filter((image) => image && image.id && image.src);
+    const projectMediaColumns = [[], []];
+    const projectMediaColumnHeights = [0, 0];
+    const wideProjectMediaImages = [];
+    const projectMediaImageMarkup = (image) => {
+      return `
+        <figure class="project-gallery-frame project-gallery-photo" id="project-media-${escapeHtml(image.id)}" tabindex="-1">
+          <img src="${escapeHtml(image.src)}" alt="${escapeHtml(image.name || `Imatge del projecte ${proj.title}`)}" loading="lazy" />
+          <button type="button" class="project-gallery-comment-action" data-comment-project-photo="${escapeHtml(image.id)}" hidden>Comenta l’imatge</button>
+        </figure>
+      `;
+    };
+    projectMediaImages.forEach((image) => {
+      const width = Number(image.width);
+      const height = Number(image.height);
+      const hasDimensions = Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0;
+      if (hasDimensions && width > height) {
+        wideProjectMediaImages.push(image);
+        return;
+      }
+
+      const columnIndex = projectMediaColumnHeights[0] <= projectMediaColumnHeights[1] ? 0 : 1;
+      projectMediaColumns[columnIndex].push(image);
+      projectMediaColumnHeights[columnIndex] += hasDimensions ? height / width : 0.75;
+    });
+    const narrowMediaCount = projectMediaColumns.reduce((count, column) => count + column.length, 0);
+    if (narrowMediaCount === 1) {
+      wideProjectMediaImages.push(projectMediaColumns[0].pop() || projectMediaColumns[1].pop());
+    }
+    const projectMediaGridColumns = projectMediaColumnHeights[0] > 0 && projectMediaColumnHeights[1] > 0
+      ? `${projectMediaColumnHeights[1]}fr ${projectMediaColumnHeights[0]}fr`
+      : "1fr 1fr";
     const projectParticipants = [...new Set([owner.name, ...(Array.isArray(proj.participants) ? proj.participants : [])].filter(Boolean))];
     const projectParticipantsMarkup = projectParticipants.map((name) => {
       const participant = state.students.find((student) => student.name === name);
@@ -1460,20 +1493,18 @@
                 <figure class="project-gallery-frame project-gallery-cover ${isProjectCoverFramed(proj) ? "framed-cover" : ""}" style="--project-gallery-ratio:${coverAspectRatio}">
                   <img src="${escapeHtml(proj.cover)}" alt="${escapeHtml(proj.title)}" />
                 </figure>
-                ${projectMediaImages.length ? `<div class="project-gallery-mosaic">${projectMediaImages.map((image) => {
-                  const width = Number(image.width);
-                  const height = Number(image.height);
-                  const hasDimensions = Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0;
-                  const ratio = hasDimensions
-                    ? `${width} / ${height}`
-                    : "4 / 3";
-                  const wideClass = hasDimensions && width > height ? " project-gallery-photo-wide" : "";
-                  return `
-                    <figure class="project-gallery-frame project-gallery-photo${wideClass}" id="project-media-${escapeHtml(image.id)}" tabindex="-1" style="--project-gallery-ratio:${ratio}">
-                      <img src="${escapeHtml(image.src)}" alt="${escapeHtml(image.name || `Imatge del projecte ${proj.title}`)}" loading="lazy" />
-                    </figure>
-                  `;
-                }).join("")}</div>` : ""}
+                ${projectMediaImages.length ? `
+                  <div class="project-gallery-secondary">
+                    ${projectMediaColumns.some((column) => column.length) ? `
+                      <div class="project-gallery-mosaic" style="grid-template-columns:${projectMediaGridColumns}">
+                        ${projectMediaColumns.map((column) => `
+                          <div class="project-gallery-mosaic-column">${column.map(projectMediaImageMarkup).join("")}</div>
+                        `).join("")}
+                      </div>
+                    ` : ""}
+                    ${wideProjectMediaImages.length ? `<div class="project-gallery-wide-stack">${wideProjectMediaImages.map(projectMediaImageMarkup).join("")}</div>` : ""}
+                  </div>
+                ` : ""}
               </div>
             </div>
 
@@ -1545,12 +1576,11 @@
           <form id="add-comment-form" class="comment-composer">
             <textarea id="new-comment-text" rows="3" placeholder="Escriu una crítica constructiva, suggeriment tècnic o referència útil (mínim 20 caràcters per obtenir punts)..." required></textarea>
             ${projectMediaImages.length ? `
-              <div class="comment-photo-linking">
-                <label for="comment-photo-reference">Referenciar una fotografia (opcional)</label>
-                <select id="comment-photo-reference">
-                  <option value="">Cap fotografia</option>
-                  ${projectMediaImages.map((image) => `<option value="${escapeHtml(image.id)}">${escapeHtml(image.name || "Fotografia del projecte")}</option>`).join("")}
-                </select>
+              <input type="hidden" id="comment-photo-reference" value="" />
+              <div class="comment-photo-linking" id="comment-photo-linking" hidden>
+                <img id="comment-photo-reference-preview" alt="" />
+                <span id="comment-photo-reference-label"></span>
+                <button type="button" id="comment-photo-reference-clear">Treure</button>
               </div>
             ` : ""}
             <div class="composer-footer">
@@ -1570,6 +1600,18 @@
             <div>${complementaryInfo}</div>
           </section>
         ` : ""}
+        ${isOwner ? `
+          <section class="project-management-section" aria-label="Gestionar projecte">
+            <div>
+              <h2>Gestionar projecte</h2>
+              <p>Els projectes arxivats es conserven al teu perfil, però no apareixen a les llistes públiques.</p>
+            </div>
+            <div class="project-management-actions">
+              <button type="button" class="btn-secondary-pill" id="archive-project-btn">${proj.archived ? "Desarxivar projecte" : "Arxivar projecte"}</button>
+              <button type="button" class="project-delete-btn" id="delete-project-btn">Eliminar projecte</button>
+            </div>
+          </section>
+        ` : ""}
       </div>
     `;
     updateProjectDetailStickyTop();
@@ -1578,6 +1620,47 @@
 
     document.getElementById("detail-comment-action").addEventListener("click", () => {
       document.getElementById("project-comments-section").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
+    const galleryStack = document.querySelector(".project-gallery-stack");
+    if (galleryStack) {
+      galleryStack.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+
+        const commentAction = target.closest("[data-comment-project-photo]");
+        if (commentAction) {
+          const imageId = commentAction.dataset.commentProjectPhoto;
+          const image = projectMediaImages.find((projectImage) => projectImage.id === imageId);
+          if (!image) return;
+
+          document.getElementById("comment-photo-reference").value = image.id;
+          document.getElementById("comment-photo-reference-preview").src = image.src;
+          document.getElementById("comment-photo-reference-preview").alt = image.name || "Fotografia referenciada";
+          document.getElementById("comment-photo-reference-label").textContent =
+            `Comentari sobre: ${image.name || "Fotografia del projecte"}`;
+          document.getElementById("comment-photo-linking").hidden = false;
+          document.getElementById("project-comments-section").scrollIntoView({ behavior: "smooth", block: "start" });
+          requestAnimationFrame(() => document.getElementById("new-comment-text").focus({ preventScroll: true }));
+          return;
+        }
+
+        const photo = target.closest(".project-gallery-photo");
+        if (!photo) return;
+        galleryStack.querySelectorAll(".project-gallery-comment-action").forEach((button) => {
+          button.hidden = true;
+        });
+        const actionButton = photo.querySelector(".project-gallery-comment-action");
+        if (actionButton) {
+          actionButton.hidden = false;
+          actionButton.focus({ preventScroll: true });
+        }
+      });
+    }
+
+    document.getElementById("comment-photo-reference-clear")?.addEventListener("click", () => {
+      document.getElementById("comment-photo-reference").value = "";
+      document.getElementById("comment-photo-linking").hidden = true;
     });
 
     const editBtn = document.getElementById("edit-project-btn");
@@ -1596,6 +1679,49 @@
         }
         saveState();
         renderProjectDetailView();
+      });
+    }
+
+    const archiveProjectButton = document.getElementById("archive-project-btn");
+    if (archiveProjectButton) {
+      archiveProjectButton.addEventListener("click", () => {
+        const wasArchived = Boolean(proj.archived);
+        proj.archived = !wasArchived;
+        if (!saveState()) {
+          proj.archived = wasArchived;
+          showToast("No s’ha pogut actualitzar l’estat del projecte.");
+          return;
+        }
+        renderProjectDetailView();
+        showToast(proj.archived ? "Projecte arxivat." : "Projecte desarxivat.");
+      });
+    }
+
+    const deleteProjectButton = document.getElementById("delete-project-btn");
+    if (deleteProjectButton) {
+      deleteProjectButton.addEventListener("click", () => {
+        if (!window.confirm(`Vols eliminar definitivament «${proj.title}»? També s’eliminaran els comentaris d’aquest projecte.`)) return;
+
+        const projectIndex = state.projects.findIndex((project) => project.id === proj.id);
+        if (projectIndex < 0) return;
+        const previousComments = state.comments;
+        const previousProjectsCount = owner.projectsCount;
+        state.projects.splice(projectIndex, 1);
+        state.comments = previousComments.filter((comment) => comment.projectId !== proj.id);
+        if (Number.isFinite(previousProjectsCount)) {
+          owner.projectsCount = Math.max(0, previousProjectsCount - 1);
+        }
+
+        if (!saveState()) {
+          state.projects.splice(projectIndex, 0, proj);
+          state.comments = previousComments;
+          owner.projectsCount = previousProjectsCount;
+          showToast("No s’ha pogut eliminar el projecte perquè l’emmagatzematge del navegador és ple.");
+          return;
+        }
+
+        navigateTo("discover");
+        showToast("Projecte eliminat.");
       });
     }
 
@@ -2109,7 +2235,9 @@
     const container = document.getElementById("view-profile");
     const student = getStudentById(ui.activeProfileId || state.currentUserId);
     const tier = getAchievementTier(student.points);
-    const studentProjects = state.projects.filter((p) => p.ownerId === student.id);
+    const studentProjects = state.projects.filter((p) =>
+      p.ownerId === student.id && (!p.archived || student.id === state.currentUserId)
+    );
 
     const nextProgress = tier.next
       ? Math.min(100, Math.round(((student.points - tier.min) / (tier.next - tier.min)) * 100))
@@ -2175,7 +2303,7 @@
                 <div class="card-overlay">
                   <div class="overlay-top">
                     <span class="overlay-badge">${escapeHtml(proj.year)}</span>
-                    <span class="overlay-badge">${escapeHtml(proj.status)}</span>
+                    <span class="overlay-badge">${proj.archived ? "Arxivat" : escapeHtml(proj.status)}</span>
                   </div>
                   <div class="overlay-bottom">
                     <h3>${escapeHtml(proj.title)}</h3>

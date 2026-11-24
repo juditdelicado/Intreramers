@@ -1320,12 +1320,19 @@ body:not(.authenticated) .app-main {
 .project-gallery-stack {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: clamp(32px, 4vw, 56px);
+}
+
+.project-gallery-secondary {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .project-gallery-frame {
   width: 100%;
-  aspect-ratio: var(--project-gallery-ratio, 4 / 3);
+  height: auto;
+  aspect-ratio: auto;
   overflow: hidden;
   margin: 0;
   background: transparent;
@@ -1334,7 +1341,7 @@ body:not(.authenticated) .app-main {
 .project-gallery-frame img {
   display: block;
   width: 100%;
-  height: 100%;
+  height: auto;
   object-fit: contain;
 }
 
@@ -1360,18 +1367,45 @@ body:not(.authenticated) .app-main {
 }
 
 .project-gallery-mosaic {
-  column-count: 2;
-  column-gap: 2px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.project-gallery-mosaic-column,
+.project-gallery-wide-stack {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .project-gallery-photo {
+  position: relative;
   display: block;
-  margin: 0 0 2px;
-  break-inside: avoid;
+  width: 100%;
+  margin: 0;
+  cursor: pointer;
 }
 
-.project-gallery-photo-wide {
-  column-span: all;
+.project-gallery-comment-action {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 1;
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: rgba(22, 22, 22, 0.88);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.project-gallery-comment-action[hidden] {
+  display: none;
 }
 
 .project-media-upload-preview {
@@ -1633,6 +1667,49 @@ body:not(.authenticated) .app-main {
   min-width: 120px;
 }
 
+.project-management-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  max-width: 1100px;
+  margin: 40px auto 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-light);
+}
+
+.project-management-section h2 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+
+.project-management-section p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.project-management-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.project-delete-btn {
+  border: 1px solid rgba(168, 54, 54, 0.35);
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: transparent;
+  color: #a83636;
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.project-delete-btn:hover {
+  background: rgba(168, 54, 54, 0.08);
+}
+
 /* Feedback Section */
 .feedback-section {
   max-width: 1100px;
@@ -1668,23 +1745,41 @@ body:not(.authenticated) .app-main {
 }
 
 .comment-photo-linking {
-  display: grid;
-  gap: 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin-top: 10px;
   max-width: 360px;
+  padding: 7px;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  background: var(--bg-subtle);
 }
 
-.comment-photo-linking label {
-  color: var(--text-secondary);
+.comment-photo-linking[hidden] {
+  display: none;
+}
+
+.comment-photo-linking img {
+  width: 48px;
+  height: 40px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.comment-photo-linking span {
+  flex: 1;
+  min-width: 0;
   font-size: 12px;
 }
 
-.comment-photo-linking select {
-  min-width: 0;
-  border: 1px solid var(--border-light);
-  border-radius: 10px;
-  padding: 9px 12px;
-  background: var(--bg-subtle);
+.comment-photo-linking button {
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
 }
 
 .comment-photo-reference {
@@ -2770,12 +2865,30 @@ body:not(.authenticated) .app-main {
     max-height: none;
   }
 
+  .project-gallery-stack {
+    gap: 28px;
+  }
+
+  .project-gallery-mosaic {
+    gap: 8px;
+  }
+
+  .project-gallery-mosaic-column,
+  .project-gallery-wide-stack {
+    gap: 8px;
+  }
+
   .project-gallery-cover img {
     max-height: min(66dvh, 620px, calc(100dvh - 160px));
   }
 
   .detail-project-actions {
     align-items: stretch;
+  }
+
+  .project-management-section {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   #publish-project-form .modal-actions {
