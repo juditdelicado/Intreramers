@@ -28,7 +28,7 @@
       <div class="auth-heading">
         <p class="auth-eyebrow">ERAM Creative Network</p>
         <h1>Inicia la sessió</h1>
-        <p>Selecciona un perfil existent.</p>
+        <p>Introdueix les teves credencials.</p>
       </div>
       <form id="auth-login-form" class="auth-login-form" autocomplete="off">
         <div class="form-group">
@@ -39,6 +39,11 @@
           <label for="auth-login-password">Contrasenya *</label>
           <input type="password" id="auth-login-password" required autocomplete="new-password" />
         </div>
+        <label class="checkbox-inline">
+          <input type="checkbox" id="auth-remember" />
+          <span>Recorda'm / mantenir la sessió iniciada</span>
+        </label>
+        <button type="button" class="text-link-btn" id="auth-forgot-password">He oblidat la contrasenya?</button>
         <div class="form-error hidden" id="auth-login-error"></div>
         <button type="submit" class="auth-submit">Iniciar sessió</button>
       </form>
@@ -99,6 +104,14 @@
             <div class="form-group">
               <label for="auth-email">Correu institucional *</label>
               <input type="email" id="auth-email" required autocomplete="email" placeholder="nom.cognoms@campus.eram.cat" />
+            </div>
+            <div class="form-group">
+              <label for="auth-password">Contrasenya *</label>
+              <input type="password" id="auth-password" required minlength="8" autocomplete="new-password" />
+            </div>
+            <div class="form-group">
+              <label for="auth-password-confirm">Confirma la contrasenya *</label>
+              <input type="password" id="auth-password-confirm" required minlength="8" autocomplete="new-password" />
             </div>
           </div>
         </div>
@@ -292,6 +305,7 @@
             <button type="button" class="cat-pill-btn" data-category="UI/UX" role="tab" aria-selected="false">UI/UX</button>
             <button type="button" class="cat-pill-btn" data-category="Audiovisuals" role="tab" aria-selected="false">Audiovisuals</button>
             <button type="button" class="cat-pill-btn" data-category="3D" role="tab" aria-selected="false">3D</button>
+            <button type="button" class="cat-pill-btn" data-category="Realitat immersiva" role="tab" aria-selected="false">Realitat immersiva</button>
           </div>
           <div class="discovery-controls">
             <button type="button" class="subtle-control-btn" id="toggle-advanced-filters" aria-expanded="false">
@@ -503,6 +517,7 @@
               <option value="Fotografia">Fotografia</option>
               <option value="UI/UX">UI/UX</option>
               <option value="3D">3D</option>
+              <option value="Realitat immersiva">Realitat immersiva</option>
             </select>
           </div>
         </div>
@@ -523,14 +538,30 @@
             <input type="url" id="proj-cover" placeholder="https://images.unsplash.com/..." />
           </div>
           <div class="form-group">
-            <label for="proj-aspect">Proporció visual al mur</label>
+            <label for="proj-cover-file">O selecciona una imatge del teu ordinador</label>
+            <input type="file" id="proj-cover-file" accept="image/*" />
+          </div>
+        </div>
+        <div class="project-image-preview-wrap">
+          <img id="proj-cover-preview" alt="Previsualització de la portada" class="hidden" />
+          <button type="button" id="proj-cover-remove" class="text-link-btn hidden">Eliminar imatge</button>
+        </div>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label for="proj-aspect">Proporció de la imatge</label>
             <select id="proj-aspect">
-              <option value="portrait">Vertical (3:4)</option>
-              <option value="tall">Alta (1:2)</option>
-              <option value="square">Quadrada (1:1)</option>
-              <option value="landscape">Apaïsada (4:3)</option>
-              <option value="wide">Panoràmica (16:9)</option>
-              <option value="custom">Personalitzat</option>
+              <option value="portrait">3:4 — Vertical</option>
+              <option value="wide">16:9 — Panoràmica</option>
+              <option value="square">1:1 — Quadrada</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="proj-image-size">Mida màxima del teu nivell</label>
+            <select id="proj-image-size">
+              <option value="small">Dimensió 1 — 600 px</option>
+              <option value="medium">Dimensió 2 — 900 px</option>
+              <option value="large">Dimensió 3 — 1200 px</option>
+              <option value="xlarge">Dimensió 4 — 1600 px</option>
             </select>
           </div>
         </div>
@@ -602,6 +633,27 @@
         <div class="form-group" id="proj-participants-wrap">
           <label for="proj-participants">Participants del grup (separats per comes)</label>
           <input type="text" id="proj-participants" placeholder="Ex: Laia Puig, Pol Vila" />
+          <label for="proj-registered-participant">Afegir participant registrat</label>
+          <select id="proj-registered-participant">
+            <option value="">Selecciona un estudiant registrat</option>
+          </select>
+        </div>
+
+        <div class="form-grid-2">
+          <label class="checkbox-inline">
+            <input type="checkbox" id="proj-seeking-collaborator" />
+            <span>Busquem una persona que vulgui col·laborar</span>
+          </label>
+          <div class="form-group" id="proj-collab-role-wrap" hidden>
+            <label for="proj-collab-role">Rol o ajuda necessària</label>
+            <select id="proj-collab-role">
+              <option value="Dissenyador/a gràfic/a">Dissenyador/a gràfic/a</option>
+              <option value="Fotògraf/a">Fotògraf/a</option>
+              <option value="Programador/a">Programador/a</option>
+              <option value="Editor/a de vídeo">Editor/a de vídeo</option>
+              <option value="Altres perfils">Altres perfils</option>
+            </select>
+          </div>
         </div>
 
         <div class="form-section-title">3. Multimèdia i feedback sol·licitat</div>
@@ -760,6 +812,99 @@
         <div class="modal-actions">
           <button type="button" class="btn-secondary" data-close-modal="modal-apply-position">Cancel·lar</button>
           <button type="submit" class="btn-primary">Enviar candidatura</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: EDIT PROFILE -->
+  <div class="modal-backdrop hidden" id="modal-edit-profile" role="dialog" aria-modal="true" aria-labelledby="modal-edit-profile-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="modal-edit-profile-title">Editar perfil</h2>
+        <button type="button" class="modal-close-btn" data-close-modal="modal-edit-profile" aria-label="Tancar">&times;</button>
+      </div>
+      <form id="edit-profile-form" class="modal-form" novalidate>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label for="edit-profile-name">Nom *</label>
+            <input type="text" id="edit-profile-name" required />
+          </div>
+          <div class="form-group">
+            <label for="edit-profile-surname">Cognoms *</label>
+            <input type="text" id="edit-profile-surname" required />
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="edit-profile-email">Correu electrònic *</label>
+          <input type="email" id="edit-profile-email" required />
+        </div>
+        <div class="form-group">
+          <label for="edit-profile-avatar">Fotografia de perfil</label>
+          <input type="file" id="edit-profile-avatar" accept="image/*" />
+          <button type="button" class="text-link-btn" id="edit-profile-remove-avatar">Eliminar fotografia i tornar a les inicials</button>
+        </div>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label for="edit-profile-password">Contrasenya nova</label>
+            <input type="password" id="edit-profile-password" minlength="8" autocomplete="new-password" />
+          </div>
+          <div class="form-group">
+            <label for="edit-profile-password-confirm">Confirma la contrasenya</label>
+            <input type="password" id="edit-profile-password-confirm" minlength="8" autocomplete="new-password" />
+          </div>
+        </div>
+        <div class="form-error hidden" id="edit-profile-error"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" data-close-modal="modal-edit-profile">Cancel·lar</button>
+          <button type="submit" class="btn-primary">Desar canvis</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: LEVELS -->
+  <div class="modal-backdrop hidden" id="modal-levels" role="dialog" aria-modal="true" aria-labelledby="modal-levels-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="modal-levels-title">Sistema de nivells</h2>
+        <button type="button" class="modal-close-btn" data-close-modal="modal-levels" aria-label="Tancar">&times;</button>
+      </div>
+      <div class="modal-form" id="levels-content"></div>
+    </div>
+  </div>
+
+  <!-- MODAL: SUBJECT -->
+  <div class="modal-backdrop hidden" id="modal-subject" role="dialog" aria-modal="true" aria-labelledby="modal-subject-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="modal-subject-title">Assignatura</h2>
+        <button type="button" class="modal-close-btn" data-close-modal="modal-subject" aria-label="Tancar">&times;</button>
+      </div>
+      <div class="modal-form" id="subject-content"></div>
+    </div>
+  </div>
+
+  <!-- MODAL: PASSWORD RECOVERY -->
+  <div class="modal-backdrop hidden" id="modal-password-recovery" role="dialog" aria-modal="true" aria-labelledby="modal-recovery-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="modal-recovery-title">Recuperar contrasenya</h2>
+        <button type="button" class="modal-close-btn" data-close-modal="modal-password-recovery" aria-label="Tancar">&times;</button>
+      </div>
+      <form id="password-recovery-form" class="modal-form">
+        <div class="form-group">
+          <label for="recovery-email">Correu institucional *</label>
+          <input type="email" id="recovery-email" required autocomplete="email" />
+        </div>
+        <div class="form-group">
+          <label for="recovery-password">Contrasenya nova *</label>
+          <input type="password" id="recovery-password" required minlength="8" autocomplete="new-password" />
+        </div>
+        <div class="form-error hidden" id="recovery-error"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" data-close-modal="modal-password-recovery">Cancel·lar</button>
+          <button type="submit" class="btn-primary">Restablir contrasenya</button>
         </div>
       </form>
     </div>

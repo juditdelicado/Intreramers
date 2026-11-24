@@ -1745,13 +1745,28 @@ body:not(.authenticated) .app-main {
 }
 
 .profile-avatar-upload::before {
-  content: "+";
-  font-size: 18px;
+  content: "✎";
+  font-size: 16px;
   line-height: 1;
 }
 
 .profile-avatar-upload input {
   display: none;
+}
+
+.project-image-preview-wrap {
+  margin: 4px 0 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.project-image-preview-wrap img {
+  width: 180px;
+  max-height: 130px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--border-light);
 }
 
 .profile-ranking-link {

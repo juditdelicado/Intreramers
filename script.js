@@ -6,6 +6,7 @@
 (() => {
   const STORAGE_KEY = "eram_creative_network_v1";
   const SESSION_KEY = "eram_creative_network_session";
+  const COMMENT_REWARDS = Object.freeze({ first: 15, second: 10, third: 7, subsequent: 5 });
 
   // Helper to generate relative ISO dates so deadlines stay realistic
   const daysFromNow = (offsetDays) => {
@@ -696,6 +697,8 @@
   // ========================================================================
   // 2. UI FILTERS & ROUTING STATE
   // ========================================================================
+  let uploadedProjectCover = "";
+
   const ui = {
     route: "discover",
     selectedCategory: "General",
@@ -734,11 +737,10 @@
   }
 
   function getAchievementTier(points) {
-    if (points >= 200) return { level: 5, name: "Community Expert", next: null, min: 200 };
-    if (points >= 130) return { level: 4, name: "Creative Mind", next: 200, min: 130 };
-    if (points >= 75) return { level: 3, name: "Collaborator", next: 130, min: 75 };
-    if (points >= 30) return { level: 2, name: "Contributor", next: 75, min: 30 };
-    return { level: 1, name: "Newcomer", next: 30, min: 0 };
+    if (points >= 200) return { level: 4, name: "Expert", next: null, min: 200, maxImage: 1600 };
+    if (points >= 120) return { level: 3, name: "Col·laborador avançat", next: 200, min: 120, maxImage: 1200 };
+    if (points >= 50) return { level: 2, name: "Col·laborador", next: 120, min: 50, maxImage: 900 };
+    return { level: 1, name: "Iniciació", next: 50, min: 0, maxImage: 600 };
   }
 
   function awardPoints(userId, actionKey, points, description) {
@@ -1130,7 +1132,12 @@
               <div class="meta-item"><span>Curs acadèmic</span><strong>${escapeHtml(proj.year)}</strong></div>
               <div class="meta-item"><span>Data límit</span><strong>${escapeHtml(proj.deadline)}</strong></div>
               <div class="meta-item"><span>Modalitat</span><strong>${proj.teamType === "group" ? "Projecte en grup" : "Individual"}</strong></div>
-              <div class="meta-item"><span>Participants</span><strong>${escapeHtml((proj.participants || [owner.name]).join(", "))}</strong></div>
+              <div class="meta-item"><span>Participants</span><strong>${(proj.participants || [owner.name]).map((name) => {
+                const participant = state.students.find((student) => student.name === name);
+                return participant
+                  ? `<button type="button" class="subject-project-link" data-open-profile="${participant.id}" style="border:0;background:transparent;padding:0;color:var(--text-primary);text-decoration:underline;">${escapeHtml(name)}</button>`
+                  : `<span>${escapeHtml(name)}</span>`;
+              }).join(" · ")}</strong></div>
             </div>
 
             <div>
@@ -1143,6 +1150,13 @@
               <p style="margin:0 0 6px;font-size:13px;"><strong>Focus:</strong> ${escapeHtml(proj.feedbackType)}</p>
               ${proj.questions ? `<p style="margin:0;font-size:12.5px;color:var(--text-secondary);"><strong>Pregunta clau:</strong> "${escapeHtml(proj.questions)}"</p>` : ""}
             </div>
+            ${proj.seekingCollaborator ? `
+              <div class="feedback-request-box">
+                <h4>Busquem col·laboració</h4>
+                <p style="margin:0;font-size:13px;">Rol necessari: <strong>${escapeHtml(proj.collaboratorRole)}</strong></p>
+                <button type="button" class="btn-secondary" data-contact-owner="${escapeHtml(owner.id)}">Contactar l'autor/a</button>
+              </div>
+            ` : ""}
           </div>
         </div>
 
@@ -1222,10 +1236,14 @@
       // Award points only if commenting on another student's project and meeting quality threshold
       if (!isOwner && text.length >= 20) {
         currentUser.commentsCount += 1;
-        awardPoints(currentUser.id, `comment-${proj.id}-${currentUser.id}`, 5, `Feedback a "${proj.title}"`);
-        if (priorCount < 2) {
-          awardPoints(currentUser.id, `low-fb-${proj.id}-${currentUser.id}`, 3, "Bonus per ajudar un projecte amb poc feedback");
-        }
+        const reward = priorCount === 0
+          ? COMMENT_REWARDS.first
+          : priorCount === 1
+            ? COMMENT_REWARDS.second
+            : priorCount === 2
+              ? COMMENT_REWARDS.third
+              : COMMENT_REWARDS.subsequent;
+        awardPoints(currentUser.id, `comment-${newComment.id}`, reward, `Feedback nº ${priorCount + 1} a "${proj.title}"`);
         pushNotification(proj.ownerId, `${currentUser.name} ha deixat feedback al teu projecte "${proj.title}"`, "project", proj.id);
       }
 
@@ -1709,13 +1727,14 @@
           <div>
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
               <h1 class="page-title">${escapeHtml(student.name)}</h1>
-              <span class="pill-tag">Nivell ${tier.level}: ${tier.name}</span>
+              <button type="button" class="pill-tag profile-level-link" style="border:0;cursor:pointer;">Nivell ${tier.level}: ${tier.name}</button>
               <button type="button" class="pill-tag profile-ranking-link" data-route="leaderboard" style="border:0;cursor:pointer;">Rànquing #${rank}</button>
+              ${student.id === state.currentUserId ? `<button type="button" class="pill-tag" id="open-profile-edit" style="border:0;cursor:pointer;">Editar perfil</button>` : ""}
             </div>
             <p style="margin:4px 0 8px;color:var(--text-secondary);">${escapeHtml(student.year)} · ${escapeHtml(student.email)}</p>
             <p style="margin:0 0 10px;font-size:13.5px;">${escapeHtml(student.bio || "")}</p>
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
-              ${(student.interests || []).map((tag) => `<span class="pill-tag">${escapeHtml(tag)}</span>`).join("")}
+              ${(student.interests || []).map((tag) => `<button type="button" class="pill-tag subject-tag" data-subject="${escapeHtml(tag)}" style="border:0;cursor:pointer;">${escapeHtml(tag)}</button>`).join("")}
             </div>
           </div>
           <div>
@@ -1765,6 +1784,53 @@
     if (rankingLink) {
       rankingLink.addEventListener("click", () => navigateTo("leaderboard"));
     }
+
+    container.querySelector(".profile-level-link")?.addEventListener("click", () => {
+      document.getElementById("levels-content").innerHTML = `
+        <div class="form-section-title">Nivells i avantatges</div>
+        <p><strong>Nivell 1 — Iniciació (0–49 pts):</strong> 600 px màxim. Accés a participar i publicar projectes.</p>
+        <p><strong>Nivell 2 — Col·laborador (50–119 pts):</strong> 900 px màxim. Visibilitat ampliada i perfil actiu.</p>
+        <p><strong>Nivell 3 — Col·laborador avançat (120–199 pts):</strong> 1200 px màxim. Més visibilitat i opcions de col·laboració.</p>
+        <p><strong>Nivell 4 — Expert (200+ pts):</strong> 1600 px màxim. Reconeixement comunitari i màxima visibilitat.</p>
+      `;
+      openModal("modal-levels");
+    });
+
+    container.querySelectorAll(".subject-tag").forEach((tag) => {
+      tag.addEventListener("click", () => {
+        const subjectName = tag.dataset.subject;
+        const linkedProjects = state.projects.filter((project) =>
+          (project.subject || "").toLowerCase().includes(subjectName.toLowerCase())
+        );
+        document.getElementById("modal-subject-title").textContent = subjectName;
+        document.getElementById("subject-content").innerHTML = `
+          <p><strong>Descripció:</strong> Assignatura vinculada als treballs creatius i acadèmics del Grau en Comunicació Audiovisual i Multimèdia.</p>
+          <div class="form-section-title">Projectes publicats</div>
+          ${linkedProjects.length ? linkedProjects.map((project) => `
+            <button type="button" class="subject-project-link" data-open-project="${project.id}" style="display:block;width:100%;text-align:left;margin:6px 0;padding:10px;border:1px solid var(--border-light);border-radius:10px;background:#fff;">
+              ${escapeHtml(project.title)}
+            </button>
+          `).join("") : "<p>No hi ha projectes vinculats encara.</p>"}
+        `;
+        document.getElementById("subject-content").querySelectorAll("[data-open-project]").forEach((button) => {
+          button.addEventListener("click", () => {
+            closeModal("modal-subject");
+            navigateTo("project", button.dataset.openProject);
+          });
+        });
+        openModal("modal-subject");
+      });
+    });
+
+    container.querySelector("#open-profile-edit")?.addEventListener("click", () => {
+      const nameParts = student.name.split(" ");
+      document.getElementById("edit-profile-name").value = nameParts.shift() || "";
+      document.getElementById("edit-profile-surname").value = nameParts.join(" ");
+      document.getElementById("edit-profile-email").value = student.email;
+      document.getElementById("edit-profile-password").value = "";
+      document.getElementById("edit-profile-password-confirm").value = "";
+      openModal("modal-edit-profile");
+    });
 
     const avatarUpload = container.querySelector("#profile-avatar-upload");
     if (avatarUpload) {
@@ -1935,6 +2001,15 @@
     document.getElementById("proj-media-url").value = proj.mediaUrl || "";
     document.getElementById("proj-feedback-type").value = proj.feedbackType;
     document.getElementById("proj-questions").value = proj.questions || "";
+    document.getElementById("proj-seeking-collaborator").checked = !!proj.seekingCollaborator;
+    document.getElementById("proj-collab-role-wrap").hidden = !proj.seekingCollaborator;
+    document.getElementById("proj-collab-role").value = proj.collaboratorRole || "Dissenyador/a gràfic/a";
+    uploadedProjectCover = proj.cover || "";
+    if (proj.cover) {
+      document.getElementById("proj-cover-preview").src = proj.cover;
+      document.getElementById("proj-cover-preview").classList.remove("hidden");
+      document.getElementById("proj-cover-remove").classList.remove("hidden");
+    }
     openModal("modal-publish-project");
   }
 
@@ -1976,6 +2051,71 @@
   // 11. EVENT LISTENERS BOOTSTRAP
   // ========================================================================
   function bindGlobalEvents() {
+    const editProfileForm = document.getElementById("edit-profile-form");
+    if (editProfileForm) {
+      const avatarInput = document.getElementById("edit-profile-avatar");
+      avatarInput.addEventListener("change", (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const student = getCurrentUser();
+          student.avatar = reader.result;
+          saveState();
+          updateHeaderChrome();
+          renderProfileView();
+        };
+        reader.readAsDataURL(file);
+      });
+
+      document.getElementById("edit-profile-remove-avatar").addEventListener("click", () => {
+        const student = getCurrentUser();
+        student.avatar = makeInitialAvatar(student.name, student.avatarColor || "#8f7cf6");
+        saveState();
+        updateHeaderChrome();
+        renderProfileView();
+        showToast("Fotografia eliminada. S'estan mostrant les inicials.");
+      });
+
+      editProfileForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const student = getCurrentUser();
+        const name = document.getElementById("edit-profile-name").value.trim();
+        const surname = document.getElementById("edit-profile-surname").value.trim();
+        const email = document.getElementById("edit-profile-email").value.trim().toLowerCase();
+        const password = document.getElementById("edit-profile-password").value;
+        const passwordConfirm = document.getElementById("edit-profile-password-confirm").value;
+        const error = document.getElementById("edit-profile-error");
+        if (!name || !surname || !email) {
+          error.textContent = "Completa el nom, els cognoms i el correu.";
+          error.classList.remove("hidden");
+          return;
+        }
+        if (password || passwordConfirm) {
+          if (password.length < 8 || password !== passwordConfirm) {
+            error.textContent = "La contrasenya ha de tenir 8 caràcters i coincidir.";
+            error.classList.remove("hidden");
+            return;
+          }
+          student.passwordHash = await hashPassword(password);
+        }
+        student.name = `${name} ${surname}`.trim();
+        student.email = email;
+        saveState();
+        closeModal("modal-edit-profile");
+        updateHeaderChrome();
+        renderProfileView();
+        showToast("Perfil actualitzat correctament.");
+      });
+    }
+    document.addEventListener("click", (event) => {
+      const contactButton = event.target.closest("[data-contact-owner]");
+      if (contactButton) {
+        navigateTo("messages");
+        showToast("Selecciona o inicia una conversa amb aquest estudiant.");
+      }
+    });
+
     // Top Navigation Route Buttons
     document.querySelectorAll("[data-route]").forEach((btn) => {
       btn.addEventListener("click", () => navigateTo(btn.dataset.route));
@@ -2040,6 +2180,19 @@
         document.getElementById("publish-project-form").reset();
         document.getElementById("proj-edit-id").value = "";
         document.getElementById("proj-deadline").value = daysFromNow(10);
+        uploadedProjectCover = "";
+        document.getElementById("proj-cover-preview").classList.add("hidden");
+        document.getElementById("proj-cover-remove").classList.add("hidden");
+        const tier = getAchievementTier(getCurrentUser().points);
+        document.getElementById("proj-image-size").innerHTML = `
+          <option value="small">Dimensió 1 — 600 px</option>
+          ${tier.level >= 2 ? '<option value="medium">Dimensió 2 — 900 px</option>' : ""}
+          ${tier.level >= 3 ? '<option value="large">Dimensió 3 — 1200 px</option>' : ""}
+          ${tier.level >= 4 ? '<option value="xlarge">Dimensió 4 — 1600 px</option>' : ""}
+        `;
+        document.getElementById("proj-registered-participant").innerHTML =
+          '<option value="">Selecciona un estudiant registrat</option>' +
+          state.students.map((student) => `<option value="${escapeHtml(student.name)}">${escapeHtml(student.name)}</option>`).join("");
         openModal("modal-publish-project");
       });
     });
@@ -2181,6 +2334,59 @@
       }
     });
 
+    const teamTypeSelect = document.getElementById("proj-team-type");
+    const participantsWrap = document.getElementById("proj-participants-wrap");
+    const collabCheck = document.getElementById("proj-seeking-collaborator");
+    const collabRoleWrap = document.getElementById("proj-collab-role-wrap");
+
+    teamTypeSelect?.addEventListener("change", () => {
+      participantsWrap.hidden = teamTypeSelect.value !== "group";
+    });
+    collabCheck?.addEventListener("change", () => {
+      collabRoleWrap.hidden = !collabCheck.checked;
+    });
+
+    document.getElementById("proj-registered-participant")?.addEventListener("change", (event) => {
+      if (!event.target.value) return;
+      const input = document.getElementById("proj-participants");
+      const names = input.value ? input.value.split(",").map((name) => name.trim()).filter(Boolean) : [];
+      if (!names.includes(event.target.value)) names.push(event.target.value);
+      input.value = names.join(", ");
+      event.target.value = "";
+    });
+
+    document.getElementById("proj-cover-file")?.addEventListener("change", (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        uploadedProjectCover = reader.result;
+        const preview = document.getElementById("proj-cover-preview");
+        preview.src = uploadedProjectCover;
+        preview.classList.remove("hidden");
+        document.getElementById("proj-cover-remove").classList.remove("hidden");
+        document.getElementById("proj-cover").value = "";
+      };
+      reader.readAsDataURL(file);
+    });
+
+    document.getElementById("proj-cover")?.addEventListener("input", (event) => {
+      if (!event.target.value.trim()) return;
+      uploadedProjectCover = event.target.value.trim();
+      const preview = document.getElementById("proj-cover-preview");
+      preview.src = uploadedProjectCover;
+      preview.classList.remove("hidden");
+      document.getElementById("proj-cover-remove").classList.remove("hidden");
+    });
+
+    document.getElementById("proj-cover-remove")?.addEventListener("click", () => {
+      uploadedProjectCover = "";
+      document.getElementById("proj-cover").value = "";
+      document.getElementById("proj-cover-file").value = "";
+      document.getElementById("proj-cover-preview").classList.add("hidden");
+      document.getElementById("proj-cover-remove").classList.add("hidden");
+    });
+
     // Publish / Edit Project Form Submission
     document.getElementById("publish-project-form").addEventListener("submit", (e) => {
       e.preventDefault();
@@ -2215,7 +2421,8 @@
         "Disseny gràfic": "https://images.unsplash.com/photo-1572044162444-ad60f128bdea?auto=format&fit=crop&w=900&q=80",
         Fotografia: "https://images.unsplash.com/photo-1452587925148-ce544e77e70d?auto=format&fit=crop&w=900&q=80",
         "UI/UX": "https://images.unsplash.com/photo-1581291518857-4e27b48ff24e?auto=format&fit=crop&w=900&q=80",
-        "3D": "https://images.unsplash.com/photo-1617791160505-6f00504e3519?auto=format&fit=crop&w=900&q=80"
+        "3D": "https://images.unsplash.com/photo-1617791160505-6f00504e3519?auto=format&fit=crop&w=900&q=80",
+        "Realitat immersiva": "https://images.unsplash.com/photo-1593508512255-86ab42a8e620?auto=format&fit=crop&w=900&q=80"
       };
 
       let aspect = aspectMap[document.getElementById("proj-aspect").value] || "span-portrait";
@@ -2242,7 +2449,7 @@
             aspect,
             description,
             briefing,
-            cover: coverInput || existing.cover,
+            cover: uploadedProjectCover || coverInput || existing.cover,
             subject,
             professor,
             year: document.getElementById("proj-year").value,
@@ -2252,7 +2459,11 @@
             participants,
             mediaUrl: document.getElementById("proj-media-url").value.trim(),
             feedbackType,
-            questions: document.getElementById("proj-questions").value.trim()
+            questions: document.getElementById("proj-questions").value.trim(),
+            seekingCollaborator: document.getElementById("proj-seeking-collaborator").checked,
+            collaboratorRole: document.getElementById("proj-seeking-collaborator").checked
+              ? document.getElementById("proj-collab-role").value
+              : ""
           });
           if (stageChanged) {
             awardPoints(currentUser.id, `stage-${existing.id}-${existing.stage}`, 2, "Actualització de fase del projecte");
@@ -2270,7 +2481,7 @@
         title,
         category,
         aspect,
-        cover: coverInput || defaultCovers[category],
+        cover: uploadedProjectCover || coverInput || defaultCovers[category],
         description,
         briefing,
         subject,
@@ -2285,7 +2496,12 @@
         status: "In progress",
         mediaUrl: document.getElementById("proj-media-url").value.trim(),
         feedbackType,
-        questions: document.getElementById("proj-questions").value.trim()
+        questions: document.getElementById("proj-questions").value.trim(),
+        seekingCollaborator: document.getElementById("proj-seeking-collaborator").checked,
+        collaboratorRole: document.getElementById("proj-seeking-collaborator").checked
+          ? document.getElementById("proj-collab-role").value
+          : "",
+        imageSize: document.getElementById("proj-image-size").value
       };
 
       state.projects.unshift(newProject);
@@ -2402,7 +2618,7 @@
     ctx.font = "700 82px Inter, Arial, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(getInitials(name), 120, 126);
+    ctx.fillText(getInitials(name), 120, 120);
     return canvas.toDataURL("image/png");
   }
 
@@ -2412,12 +2628,26 @@
     document.getElementById("auth-start-view").classList.remove("hidden");
     document.getElementById("auth-login-view").classList.add("hidden");
     document.getElementById("auth-register-view").classList.add("hidden");
+    document.querySelectorAll("#auth-login-form input").forEach((input) => {
+      if (input.type === "checkbox") input.checked = false;
+      else input.value = "";
+    });
   }
 
-  function enterAuthenticatedSession(userId) {
+  async function hashPassword(password) {
+    if (!window.crypto?.subtle) return btoa(password);
+    const bytes = new TextEncoder().encode(password);
+    const digest = await crypto.subtle.digest("SHA-256", bytes);
+    return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  function enterAuthenticatedSession(userId, remember = false) {
     state.currentUserId = userId;
     saveState();
-    localStorage.setItem(SESSION_KEY, userId);
+    localStorage.removeItem(SESSION_KEY);
+    sessionStorage.removeItem(SESSION_KEY);
+    if (remember) localStorage.setItem(SESSION_KEY, userId);
+    else sessionStorage.setItem(SESSION_KEY, userId);
     document.body.classList.add("authenticated");
     document.getElementById("auth-page").classList.add("hidden");
     updateHeaderChrome();
@@ -2465,10 +2695,11 @@
       button.addEventListener("click", showAuthPage);
     });
 
-    document.getElementById("auth-login-form").addEventListener("submit", (event) => {
+    document.getElementById("auth-login-form").addEventListener("submit", async (event) => {
       event.preventDefault();
       const email = document.getElementById("auth-login-email").value.trim().toLowerCase();
       const password = document.getElementById("auth-login-password").value;
+      const remember = document.getElementById("auth-remember").checked;
       const error = document.getElementById("auth-login-error");
       if (!email.endsWith("@campus.eram.cat") || !password) {
         error.textContent = "Introdueix un correu @campus.eram.cat i la contrasenya.";
@@ -2477,7 +2708,15 @@
       }
       const existingUser = state.students.find((student) => student.email.toLowerCase() === email);
       if (existingUser) {
-        enterAuthenticatedSession(existingUser.id);
+        const passwordHash = await hashPassword(password);
+        if (!existingUser.passwordHash) existingUser.passwordHash = await hashPassword("ERAM2026");
+        if (existingUser.passwordHash !== passwordHash) {
+          error.textContent = "El correu electrònic o la contrasenya no coincideixen.";
+          error.classList.remove("hidden");
+          return;
+        }
+        saveState();
+        enterAuthenticatedSession(existingUser.id, remember);
         return;
       }
       error.textContent = "No existeix cap compte amb aquest correu.";
@@ -2536,16 +2775,28 @@
       });
     });
 
-    document.getElementById("auth-register-form").addEventListener("submit", (event) => {
+    document.getElementById("auth-register-form").addEventListener("submit", async (event) => {
       event.preventDefault();
       const firstName = document.getElementById("auth-first-name").value.trim();
       const lastName = document.getElementById("auth-last-name").value.trim();
       const email = document.getElementById("auth-email").value.trim().toLowerCase();
+      const password = document.getElementById("auth-password").value;
+      const passwordConfirm = document.getElementById("auth-password-confirm").value;
       const errBox = document.getElementById("auth-form-error");
       const fullName = `${firstName} ${lastName}`.trim();
 
       if (!email.endsWith("@campus.eram.cat")) {
         errBox.textContent = "Només es permet el correu institucional @campus.eram.cat.";
+        errBox.classList.remove("hidden");
+        return;
+      }
+      if (password.length < 8) {
+        errBox.textContent = "La contrasenya ha de tenir almenys 8 caràcters.";
+        errBox.classList.remove("hidden");
+        return;
+      }
+      if (password !== passwordConfirm) {
+        errBox.textContent = "Les contrasenyes no coincideixen.";
         errBox.classList.remove("hidden");
         return;
       }
@@ -2560,6 +2811,7 @@
         id: "stu-" + Date.now(),
         name: fullName,
         email,
+        passwordHash: await hashPassword(password),
         role,
         year: document.getElementById("auth-year").value,
         avatar,
@@ -2583,14 +2835,42 @@
 
     document.getElementById("logout-btn").addEventListener("click", () => {
       localStorage.removeItem(SESSION_KEY);
+      sessionStorage.removeItem(SESSION_KEY);
       closeAllPopovers();
       renderAuthExistingProfiles();
       showAuthPage();
     });
+
+    document.getElementById("auth-forgot-password").addEventListener("click", () => {
+      document.getElementById("recovery-email").value = document.getElementById("auth-login-email").value;
+      openModal("modal-password-recovery");
+    });
+
+    document.getElementById("password-recovery-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const email = document.getElementById("recovery-email").value.trim().toLowerCase();
+      const password = document.getElementById("recovery-password").value;
+      const error = document.getElementById("recovery-error");
+      const student = state.students.find((item) => item.email.toLowerCase() === email);
+      if (!student) {
+        error.textContent = "No existeix cap compte amb aquest correu.";
+        error.classList.remove("hidden");
+        return;
+      }
+      if (password.length < 8) {
+        error.textContent = "La contrasenya ha de tenir almenys 8 caràcters.";
+        error.classList.remove("hidden");
+        return;
+      }
+      student.passwordHash = await hashPassword(password);
+      saveState();
+      closeModal("modal-password-recovery");
+      showToast("Contrasenya restablerta correctament.");
+    });
   }
 
   // Initialize Application
-  const savedSession = localStorage.getItem(SESSION_KEY);
+  const savedSession = localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY);
   const hasSavedSession = savedSession && state.students.some((student) => student.id === savedSession);
   renderAuthExistingProfiles();
   bindAuthPageEvents();
