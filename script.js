@@ -1917,7 +1917,31 @@
     const grid = document.getElementById("positions-list-grid");
     const currentUser = getCurrentUser();
 
-    const filtered = state.positions.filter((pos) => {
+    const projectCollaborations = state.projects
+      .filter((project) => project.teamType === "group" && project.seekingCollaborator)
+      .map((project) => ({
+        id: `project-collaboration-${project.id}`,
+        title: `Busquem col·laboració — ${project.collaboratorRole || "Rol per concretar"}`,
+        projectTitle: project.title,
+        role: project.collaboratorRole || "Altres perfils",
+        spots: 1,
+        compensation: "Academic collaboration",
+        startDate: project.createdAt || "Actualment",
+        endDate: project.deadline || "Sense data",
+        location: "Hybrid",
+        projectType: "Academic",
+        year: project.year,
+        description: project.description,
+        ownerId: project.ownerId,
+        createdAt: "Oportunitat del projecte",
+        status: "Open",
+        applications: [],
+        projectId: project.id,
+        isProjectCollaboration: true
+      }));
+
+    const allPositions = [...state.positions, ...projectCollaborations];
+    const filtered = allPositions.filter((pos) => {
       if (ui.posFilters.role && pos.role !== ui.posFilters.role) return false;
       if (ui.posFilters.compensation && pos.compensation !== ui.posFilters.compensation) return false;
       if (ui.posFilters.projectType && pos.projectType !== ui.posFilters.projectType) return false;
@@ -1970,7 +1994,9 @@
                 </div>
                 <div>
                   ${
-                    isOwner
+                    pos.isProjectCollaboration
+                      ? `<button type="button" class="btn-primary" data-open-project="${escapeHtml(pos.projectId)}">Veure projecte</button>`
+                    : isOwner
                       ? `<span class="pill-tag">${pos.applications.length} candidatures</span>`
                       : myApp
                       ? `<span class="pill-tag success">Candidatura: ${escapeHtml(myApp.status)}</span>`
@@ -2563,6 +2589,7 @@
 
   function closeAllPopovers() {
     document.querySelectorAll(".popover-menu").forEach((m) => m.classList.add("hidden"));
+    document.body.classList.remove("profile-menu-open");
   }
 
   function showToast(message) {
@@ -2705,7 +2732,12 @@
         e.stopPropagation();
         const wasHidden = menu.classList.contains("hidden");
         closeAllPopovers();
-        if (wasHidden) menu.classList.remove("hidden");
+        if (wasHidden) {
+          menu.classList.remove("hidden");
+          if (menuId === "profile-dropdown") {
+            document.body.classList.add("profile-menu-open");
+          }
+        }
       });
     };
 
