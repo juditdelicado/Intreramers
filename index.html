@@ -14,8 +14,9 @@
 </head>
 <body>
   <div id="popover-underlay" class="popover-underlay hidden" aria-hidden="true"></div>
+
   <!-- FULL-SCREEN ACCOUNT ACCESS PAGE -->
-  <section id="auth-page" class="auth-page hidden" aria-label="Accés a Intreramer">
+  <section id="auth-page" class="auth-page" aria-label="Accés a Intreramer">
     <div id="auth-start-view" class="auth-start-view">
       <img src="mussol 2 eram.png" alt="ERAM" class="auth-eram-logo" />
       <div class="auth-start-actions">
@@ -87,167 +88,204 @@
         <p>Uneix-te a la comunitat i connecta amb projectes i estudiants.</p>
       </div>
 
-      <form id="auth-register-form" class="auth-form">
-        <fieldset class="auth-role-fieldset">
-          <legend>Quin perfil ets?</legend>
-          <div class="auth-role-options">
-            <label class="auth-role-option">
-              <input type="radio" name="auth-role" value="student" checked />
-              <span>
-                <strong>Alumne ERAM</strong>
-                <small>Estudiant actual del grau</small>
-              </span>
-            </label>
-            <label class="auth-role-option">
-              <input type="radio" name="auth-role" value="alumni" />
-              <span>
-                <strong>Alumni ERAM</strong>
-                <small>Exestudiant o antic alumne</small>
-              </span>
-            </label>
-          </div>
-        </fieldset>
-
-        <div class="auth-profile-row">
-          <div class="auth-avatar-column">
-            <div id="auth-avatar-preview" class="auth-avatar-preview" aria-label="Vista prèvia de la foto de perfil">
-              <span id="auth-avatar-initials">IE</span>
-              <img id="auth-avatar-image" alt="" hidden />
-            </div>
-            <label class="auth-upload-btn" for="auth-avatar-upload">
-              <input type="file" id="auth-avatar-upload" accept="image/*" />
-              Pujar una foto
-            </label>
-          </div>
-
-          <div class="auth-profile-fields">
-            <div class="auth-form-grid">
-              <div class="form-group">
-                <label for="auth-first-name">Nom *</label>
-                <input type="text" id="auth-first-name" required autocomplete="given-name" placeholder="Júlia" />
-              </div>
-              <div class="form-group">
-                <label for="auth-last-name">Cognoms *</label>
-                <input type="text" id="auth-last-name" required autocomplete="family-name" placeholder="Soler Martí" />
-              </div>
-            </div>
-            <div class="form-group">
-              <label for="auth-email">Correu institucional *</label>
-              <input type="email" id="auth-email" required autocomplete="email" placeholder="nom.cognoms@campus.eram.cat" />
-            </div>
-            <div class="form-group">
-              <label for="auth-password">Contrasenya *</label>
-              <input type="password" id="auth-password" required minlength="8" autocomplete="new-password" />
-            </div>
-            <div class="form-group">
-              <label for="auth-password-confirm">Confirma la contrasenya *</label>
-              <input type="password" id="auth-password-confirm" required minlength="8" autocomplete="new-password" />
-            </div>
+      <form id="auth-register-form" class="auth-form" novalidate>
+        <div class="project-wizard-progress" aria-live="polite">
+          <span id="auth-register-step-label">Pas 1 de 3 · Perfil</span>
+          <div class="project-wizard-progress-track" aria-hidden="true">
+            <span data-auth-register-progress="1" class="is-active"></span>
+            <span data-auth-register-progress="2"></span>
+            <span data-auth-register-progress="3"></span>
           </div>
         </div>
 
-        <div class="auth-form-grid">
-          <div class="form-group">
-            <label for="auth-year" id="auth-year-label">Curs actual *</label>
-            <select id="auth-year" required>
-              <option value="1r Curs">1r Curs</option>
-              <option value="2n Curs">2n Curs</option>
-              <option value="3r Curs">3r Curs</option>
-              <option value="4t Curs (TFG)">4t Curs (TFG)</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="auth-avatar-color">Color del perfil</label>
-            <div class="auth-color-control">
-              <input type="color" id="auth-avatar-color" value="#8f7cf6" />
-              <span id="auth-avatar-color-value">#8F7CF6</span>
+        <section class="auth-register-step" data-auth-register-step="1">
+          <div class="form-section-title">1. Primer, escull el teu perfil</div>
+          <fieldset class="auth-role-fieldset">
+            <legend>Alumne ERAM o Alumni ERAM?</legend>
+            <div class="auth-role-options">
+              <label class="auth-role-option">
+                <input type="radio" name="auth-role" value="student" checked />
+                <span>
+                  <strong>Alumne ERAM</strong>
+                  <small>Estudiant actual del grau</small>
+                </span>
+              </label>
+              <label class="auth-role-option">
+                <input type="radio" name="auth-role" value="alumni" />
+                <span>
+                  <strong>Alumni ERAM</strong>
+                  <small>Exestudiant o antic alumne</small>
+                </span>
+              </label>
+            </div>
+          </fieldset>
+        </section>
+
+        <section class="auth-register-step" data-auth-register-step="2" hidden>
+          <div class="form-section-title auth-personal-details-title">Dades personals i perfil</div>
+          <div class="auth-profile-row">
+            <div class="auth-avatar-column">
+              <div id="auth-avatar-preview" class="auth-avatar-preview" aria-label="Vista prèvia de la foto de perfil">
+                <span id="auth-avatar-initials">IE</span>
+                <img id="auth-avatar-image" alt="" hidden />
+              </div>
+              <label class="auth-upload-btn" for="auth-avatar-upload">
+                <input type="file" id="auth-avatar-upload" accept="image/*" />
+                Pujar una foto
+              </label>
+            </div>
+
+            <div class="auth-profile-fields">
+              <div class="auth-form-grid">
+                <div class="form-group">
+                  <label for="auth-first-name">Nom *</label>
+                  <input type="text" id="auth-first-name" required autocomplete="given-name" placeholder="Júlia" />
+                </div>
+                <div class="form-group">
+                  <label for="auth-last-name">Cognoms *</label>
+                  <input type="text" id="auth-last-name" required autocomplete="family-name" placeholder="Soler Martí" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="auth-email">Correu institucional *</label>
+                <input type="email" id="auth-email" required autocomplete="email" placeholder="nom.cognoms@campus.eram.cat" />
+              </div>
+              <div class="form-group">
+                <label for="auth-password">Contrasenya *</label>
+                <input type="password" id="auth-password" required minlength="8" autocomplete="new-password" />
+              </div>
+              <div class="form-group">
+                <label for="auth-password-confirm">Confirma la contrasenya *</label>
+                <input type="password" id="auth-password-confirm" required minlength="8" autocomplete="new-password" />
+              </div>
+              <div class="form-group">
+                <label for="auth-avatar-color">Color del perfil</label>
+                <div class="auth-color-control">
+                  <input type="color" id="auth-avatar-color" value="#8f7cf6" />
+                  <span id="auth-avatar-color-value">#8F7CF6</span>
+                </div>
+              </div>
             </div>
           </div>
+          <div id="auth-alumni-academic-heading" class="form-section-title hidden">Grau i any de graduació</div>
+          <div id="auth-alumni-academic-target"></div>
+        </section>
+
+        <section class="auth-register-step" data-auth-register-step="3" hidden>
+          <div class="form-section-title">3. Grau i assignatures</div>
+          <div id="auth-student-academic-target">
+            <div class="form-grid-2 auth-academic-selects" id="auth-academic-fields">
+              <div class="form-group">
+                <label for="auth-degree">Grau *</label>
+                <select id="auth-degree" required>
+                  <option value="" selected disabled>Selecciona un grau</option>
+                  <option value="GCAM">GCAM · Grau en Comunicació Audiovisual i Multimèdia</option>
+                  <option value="DCAM">DCAM · Degree in Audiovisual and Multimedia Communication</option>
+                  <option value="GAE">GAE · Grau en Arts Escèniques</option>
+                  <option value="MODA">MODA · Grau en Moda</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="auth-year" id="auth-year-label">Curs actual *</label>
+                <select id="auth-year" required disabled>
+                  <option value="" selected>Selecciona primer el grau</option>
+                  <option value="1r Curs">1r Curs</option>
+                  <option value="2n Curs">2n Curs</option>
+                  <option value="3r Curs">3r Curs</option>
+                  <option value="4t Curs (TFG)">4t Curs (TFG)</option>
+                </select>
+              </div>
+            </div>
+            <p id="auth-subjects-empty" class="auth-subjects-empty">Tria primer el grau i el curs per veure les assignatures del pla d'estudis.</p>
+            <fieldset class="auth-subjects" id="auth-subject-picker" hidden>
+              <legend id="auth-subjects-label">Assignatures matriculades</legend>
+              <div class="auth-suggested-subjects">
+                <span class="auth-subject-section-title" id="auth-suggested-subjects-title">Suggerides pel curs</span>
+                <div class="auth-subject-options" id="auth-suggested-subject-options"></div>
+              </div>
+              <div class="auth-subject-search">
+                <label for="auth-subject-search-input">Buscar altres assignatures</label>
+                <input type="search" id="auth-subject-search-input" placeholder="Ex: Disseny interactiu" autocomplete="off" />
+                <small id="auth-subject-search-help" class="auth-subject-search-help"></small>
+                <div class="auth-subject-options" id="auth-subject-search-results"></div>
+              </div>
+              <div class="auth-selected-subjects">
+                <span class="auth-subject-section-title">Assignatures seleccionades</span>
+                <div class="auth-subject-options" id="auth-selected-subject-options"></div>
+              </div>
+            </fieldset>
+          </div>
+        </section>
+
+        <div class="form-error hidden" id="auth-form-error" role="alert"></div>
+        <div class="modal-actions auth-register-actions">
+          <button type="button" class="btn-secondary hidden" id="auth-register-back">Enrere</button>
+          <button type="button" class="auth-submit" id="auth-register-next">Següent</button>
+          <button type="submit" class="auth-submit hidden" id="auth-register-submit">Crear compte i iniciar sessió</button>
         </div>
-
-        <fieldset class="auth-subjects">
-          <legend id="auth-subjects-label">Assignatures matriculades</legend>
-          <div class="auth-suggested-subjects">
-            <span class="auth-subject-section-title">Suggerides pel curs</span>
-            <div class="auth-subject-options" id="auth-suggested-subject-options"></div>
-          </div>
-          <div class="auth-subject-search">
-            <label for="auth-subject-search-input">Buscar altres assignatures</label>
-            <input type="search" id="auth-subject-search-input" placeholder="Ex: Disseny interactiu" autocomplete="off" />
-            <div class="auth-subject-options" id="auth-subject-search-results"></div>
-          </div>
-          <div class="auth-selected-subjects">
-            <span class="auth-subject-section-title">Assignatures seleccionades</span>
-            <div class="auth-subject-options" id="auth-selected-subject-options"></div>
-          </div>
-        </fieldset>
-
-        <div class="form-error hidden" id="auth-form-error"></div>
-        <button type="submit" class="auth-submit">Crear compte i iniciar sessió</button>
       </form>
     </div>
   </section>
 
-  <!-- TOP NAVIGATION BAR (Matches Reference Layout) -->
+  <!-- TOP NAVIGATION BAR -->
   <header class="top-nav" role="banner">
     <div class="nav-inner">
       <div class="nav-left-cluster">
-      <div class="nav-brand-anchor dropdown-anchor">
-        <button type="button" class="nav-brand-trigger" id="platform-menu-trigger" aria-label="Configuració i informació de la plataforma" aria-expanded="false">
-          <img src="Logotip ERAM.png" alt="ERAM" />
-        </button>
-        <div class="popover-menu nav-brand-menu hidden" id="platform-dropdown" role="menu">
-          <button type="button" class="popover-item" data-action="open-settings" role="menuitem">
-            <strong>Configuració</strong>
+        <div class="nav-brand-anchor dropdown-anchor">
+          <button type="button" class="nav-brand-trigger" id="platform-menu-trigger" aria-label="Configuració i informació de la plataforma" aria-expanded="false">
+            <img src="Logotip ERAM.png" alt="ERAM" />
           </button>
-          <button type="button" class="popover-item" data-action="open-about" role="menuitem">
-            <strong>About Us</strong>
-          </button>
+          <div class="popover-menu nav-brand-menu hidden" id="platform-dropdown" role="menu">
+            <button type="button" class="popover-item" data-action="open-settings" role="menuitem">
+              <strong>Configuració</strong>
+            </button>
+            <button type="button" class="popover-item" data-action="open-about" role="menuitem">
+              <strong>About Us</strong>
+            </button>
+          </div>
         </div>
-      </div>
-      <!-- LEFT PILL CONTAINER -->
-      <nav class="nav-pill nav-left" aria-label="Navegació principal">
-        <button type="button" class="nav-icon-btn active" data-route="discover" title="Descobrir projectes" aria-label="Descobrir projectes">
-          <!-- Minimalist Masonry Grid Icon matching screenshot -->
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="4" y="4" width="6" height="9" rx="1.2" fill="currentColor" fill-opacity="0.14"/>
-            <rect x="13" y="4" width="7" height="5" rx="1.2"/>
-            <rect x="13" y="12" width="7" height="8" rx="1.2" fill="currentColor" fill-opacity="0.14"/>
-            <rect x="4" y="16" width="6" height="4" rx="1.2"/>
-          </svg>
-          <span class="nav-label-mobile">Projectes</span>
-        </button>
 
-        <button type="button" class="nav-icon-btn" data-route="positions" title="Posicions obertes i col·laboracions" aria-label="Posicions obertes">
-          <!-- Briefcase / Open Roles Icon -->
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="7" width="18" height="12" rx="2"/>
-            <path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/>
-            <path d="M3 12h18"/>
-            <path d="M10 12v2h4v-2"/>
-          </svg>
-          <span class="nav-label-mobile">Posicions</span>
-        </button>
+        <!-- LEFT PILL CONTAINER -->
+        <nav class="nav-pill nav-left" aria-label="Navegació principal">
+          <button type="button" class="nav-icon-btn active" data-route="discover" title="Descobrir projectes" aria-label="Descobrir projectes">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="4" y="4" width="6" height="9" rx="1.2" fill="currentColor" fill-opacity="0.14"/>
+              <rect x="13" y="4" width="7" height="5" rx="1.2"/>
+              <rect x="13" y="12" width="7" height="8" rx="1.2" fill="currentColor" fill-opacity="0.14"/>
+              <rect x="4" y="16" width="6" height="4" rx="1.2"/>
+            </svg>
+            <span class="nav-label-mobile">Projectes</span>
+          </button>
 
-        <button type="button" class="nav-icon-btn" data-route="leaderboard" title="Rànquings" aria-label="Rànquings">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M8 21h8"/>
-            <path d="M12 17v4"/>
-            <path d="M7 4h10v4a5 5 0 0 1-10 0V4z"/>
-            <path d="M7 6H4v1a4 4 0 0 0 4 4"/>
-            <path d="M17 6h3v1a4 4 0 0 1-4 4"/>
-          </svg>
-          <span class="nav-label-mobile">Rànquings</span>
-        </button>
+          <button type="button" class="nav-icon-btn" data-route="positions" title="Posicions obertes i col·laboracions" aria-label="Posicions obertes">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="7" width="18" height="12" rx="2"/>
+              <path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/>
+              <path d="M3 12h18"/>
+              <path d="M10 12v2h4v-2"/>
+            </svg>
+            <span class="nav-label-mobile">Posicions</span>
+          </button>
 
-        <button type="button" class="nav-icon-btn" data-route="messages" title="Missatges privats" aria-label="Missatges privats">
-          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
-          </svg>
-          <span class="unread-dot hidden" id="nav-msg-badge"></span>
-          <span class="nav-label-mobile">Xat</span>
-        </button>
-      </nav>
+          <button type="button" class="nav-icon-btn" data-route="leaderboard" title="Rànquings" aria-label="Rànquings">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M8 21h8"/>
+              <path d="M12 17v4"/>
+              <path d="M7 4h10v4a5 5 0 0 1-10 0V4z"/>
+              <path d="M7 6H4v1a4 4 0 0 0 4 4"/>
+              <path d="M17 6h3v1a4 4 0 0 1-4 4"/>
+            </svg>
+            <span class="nav-label-mobile">Rànquings</span>
+          </button>
+
+          <button type="button" class="nav-icon-btn" data-route="messages" title="Missatges privats" aria-label="Missatges privats">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+            </svg>
+            <span class="unread-dot hidden" id="nav-msg-badge"></span>
+            <span class="nav-label-mobile">Xat</span>
+          </button>
+        </nav>
       </div>
 
       <!-- CENTER SEARCH PILL -->
@@ -264,6 +302,7 @@
             aria-label="Cerca projectes, estudiants, assignatures o rols"
             autocomplete="off"
           />
+          <button type="button" id="search-clear-btn" class="text-link-btn hidden" aria-label="Netejar cerca">&times;</button>
         </div>
       </div>
 
@@ -320,9 +359,8 @@
 
   <!-- MAIN VIEWPORT CONTAINER -->
   <main id="app-main" class="app-main">
-    <!-- VIEW 1: HOMEPAGE — PROJECT DISCOVERY (Exact Reference Layout) -->
+    <!-- VIEW 1: HOMEPAGE — PROJECT DISCOVERY -->
     <section id="view-discover" class="view-section active" aria-label="Descobriment de projectes">
-      <!-- Category Filter Row matching screenshot -->
       <div class="category-bar-wrapper">
         <div class="category-bar" role="tablist" aria-label="Categories de projectes">
           <button type="button" class="cat-general-btn active" id="active-category-label" data-category="General" role="tab" aria-selected="true">General</button>
@@ -557,75 +595,73 @@
             <span data-wizard-progress="6"></span>
           </div>
         </div>
-        <div class="form-error hidden" id="proj-form-error" role="alert"></div>
 
-        <section class="project-wizard-step" data-project-step="1">
-          <div class="form-section-title">1. Nom del projecte</div>
+        <section data-project-step="1">
+          <div class="form-section-title">1. Informació bàsica</div>
           <div class="form-group">
-            <label for="proj-title">Nom del projecte *</label>
-            <input type="text" id="proj-title" required placeholder="Ex: Curtmetratge 'Ecos del Ter'" />
+            <label for="proj-title">Títol del projecte *</label>
+            <input type="text" id="proj-title" required placeholder="Ex: Curtmetratge documental sobre el riu Ter" />
           </div>
-        </section>
-
-        <section class="project-wizard-step" data-project-step="2" hidden>
-          <div class="form-section-title">2. Imatge de portada</div>
           <div class="form-grid-2">
             <div class="form-group">
-              <label for="proj-cover">URL de la imatge</label>
-              <input type="url" id="proj-cover" placeholder="https://images.unsplash.com/..." />
+              <label for="proj-category">Categoria principal *</label>
+              <select id="proj-category">
+                <option value="Disseny gràfic">Disseny gràfic</option>
+                <option value="Fotografia">Fotografia</option>
+                <option value="UI/UX">UI/UX</option>
+                <option value="Audiovisuals">Audiovisuals</option>
+                <option value="3D">3D</option>
+                <option value="Realitat immersiva">Realitat immersiva</option>
+              </select>
             </div>
             <div class="form-group">
-              <label for="proj-cover-file">O selecciona una imatge del teu ordinador</label>
-              <input type="file" id="proj-cover-file" accept="image/*" />
+              <label for="proj-aspect">Format de la targeta</label>
+              <select id="proj-aspect">
+                <option value="portrait">Vertical (3:4)</option>
+                <option value="square">Quadrat (1:1)</option>
+                <option value="wide">Panoràmic (16:9)</option>
+              </select>
             </div>
-          </div>
-          <div class="form-group">
-            <label for="proj-aspect">Proporció del marc</label>
-            <select id="proj-aspect">
-              <option value="portrait">3:4 — Vertical</option>
-              <option value="wide">16:9 — Panoràmica</option>
-              <option value="square">1:1 — Quadrada</option>
-            </select>
-          </div>
-          <div id="proj-cropper" class="project-image-cropper hidden">
-            <canvas id="proj-crop-canvas" class="project-crop-canvas" tabindex="0" role="img" aria-label="Canvas per enquadrar la portada. Arrossega la imatge per ajustar-la." aria-describedby="proj-crop-help"></canvas>
-            <div class="project-crop-controls">
-              <label for="proj-crop-zoom">Amplia la imatge</label>
-              <input id="proj-crop-zoom" type="range" min="1" max="4" step="0.01" value="1" />
-              <button type="button" id="proj-crop-reset" class="text-link-btn">Restableix l’enquadrament</button>
-              <span id="proj-crop-help">Arrossega la imatge dins del marc per ajustar-ne l’enquadrament.</span>
-            </div>
-            <div id="proj-crop-error" class="form-error hidden" role="status"></div>
-            <button type="button" id="proj-cover-remove" class="text-link-btn">Eliminar imatge</button>
           </div>
         </section>
 
-        <section class="project-wizard-step" data-project-step="3" hidden>
-          <div class="form-section-title">3. Descripció i detalls</div>
+        <section data-project-step="2" hidden>
+          <div class="form-section-title">2. Imatge de portada</div>
           <div class="form-group">
-            <label for="proj-category">Categoria *</label>
-            <select id="proj-category" required>
-              <option value="Audiovisuals">Audiovisuals</option>
-              <option value="Disseny gràfic">Disseny gràfic</option>
-              <option value="Fotografia">Fotografia</option>
-              <option value="UI/UX">UI/UX</option>
-              <option value="3D">3D</option>
-              <option value="Realitat immersiva">Realitat immersiva</option>
-            </select>
+            <label for="proj-cover-file">Pujar imatge des de l'ordinador</label>
+            <input type="file" id="proj-cover-file" accept="image/*" />
           </div>
+          <div class="form-group">
+            <label for="proj-cover">O enganxa l'enllaç (URL) d'una imatge</label>
+            <input type="url" id="proj-cover" placeholder="https://..." />
+          </div>
+          <div id="proj-cropper" class="project-cropper hidden">
+            <canvas id="proj-crop-canvas"></canvas>
+            <div class="project-crop-controls">
+              <label for="proj-crop-zoom">Zoom</label>
+              <input type="range" id="proj-crop-zoom" min="1" max="2.5" step="0.05" value="1" />
+              <button type="button" class="text-link-btn" id="proj-crop-reset">Centrar</button>
+              <button type="button" class="text-link-btn" id="proj-cover-remove">Treure imatge</button>
+            </div>
+          </div>
+          <div class="form-error hidden" id="proj-crop-error"></div>
+        </section>
+
+        <section data-project-step="3" hidden>
+          <div class="form-section-title">3. Descripció i briefing</div>
           <div class="form-group">
             <label for="proj-description">Descripció del projecte *</label>
-            <textarea id="proj-description" rows="2" required placeholder="Explica breument de què tracta el projecte..."></textarea>
+            <textarea id="proj-description" rows="3" required placeholder="Explica en què consisteix el projecte, el concepte i el punt en què es troba..."></textarea>
           </div>
           <div class="form-group">
-            <label for="proj-briefing">Briefing creatiu i objectius *</label>
-            <textarea id="proj-briefing" rows="2" required placeholder="Quines referències visuals, estil o objectius comunicatius segueix?"></textarea>
+            <label for="proj-briefing">Objectius i requisits del briefing *</label>
+            <textarea id="proj-briefing" rows="3" required placeholder="Quins són els objectius principals o les restriccions de l'encàrrec?"></textarea>
           </div>
         </section>
 
-        <section class="project-wizard-step" data-project-step="4" hidden>
-          <div class="form-section-title">4. Context acadèmic ERAM</div>
-          <div class="form-grid-3">
+        <section data-project-step="4" hidden>
+          <div class="form-section-title">4. Context acadèmic i equip</div>
+          <div class="form-grid-2">
             <div class="form-group">
               <label for="proj-subject">Assignatura *</label>
               <input type="text" id="proj-subject" required placeholder="Ex: Direcció Cinematogràfica" />
@@ -634,108 +670,99 @@
               <label for="proj-professor">Professor/a *</label>
               <input type="text" id="proj-professor" required placeholder="Ex: Dr. Marc Ferrer" />
             </div>
+          </div>
+          <div class="form-grid-3">
             <div class="form-group">
-              <label for="proj-year">Curs acadèmic *</label>
-              <select id="proj-year" required>
+              <label for="proj-year">Curs acadèmic</label>
+              <select id="proj-year">
                 <option value="1r Curs">1r Curs</option>
                 <option value="2n Curs">2n Curs</option>
-                <option value="3r Curs" selected>3r Curs</option>
+                <option value="3r Curs">3r Curs</option>
                 <option value="4t Curs (TFG)">4t Curs (TFG)</option>
               </select>
             </div>
-          </div>
-
-          <div class="form-grid-3">
             <div class="form-group">
-              <label for="proj-deadline">Data límit d'entrega *</label>
+              <label for="proj-deadline">Data d'entrega *</label>
               <input type="date" id="proj-deadline" required />
             </div>
             <div class="form-group">
-              <label for="proj-stage">Fase de desenvolupament *</label>
-              <select id="proj-stage" required>
+              <label for="proj-stage">Fase actual</label>
+              <select id="proj-stage">
                 <option value="Initial idea">1. Idea inicial</option>
                 <option value="Research and references">2. Recerca i referències</option>
                 <option value="Pre-production">3. Preproducció</option>
                 <option value="Production">4. Producció</option>
-                <option value="Post-production" selected>5. Postproducció</option>
+                <option value="Post-production">5. Postproducció</option>
                 <option value="Final review">6. Revisió final</option>
               </select>
             </div>
-            <div class="form-group">
-              <label for="proj-team-type">Tipus de treball</label>
-              <select id="proj-team-type">
-                <option value="individual">Individual (1 persona)</option>
-                <option value="group">En grup</option>
-              </select>
-            </div>
           </div>
-
-          <div class="form-group" id="proj-participants-wrap" hidden>
-            <label for="proj-participants">Participants del grup (separats per comes)</label>
-            <input type="text" id="proj-participants" placeholder="Ex: Laia Puig, Pol Vila" />
-            <label for="proj-registered-participant">Afegir participant registrat</label>
-            <select id="proj-registered-participant">
-              <option value="">Selecciona un estudiant registrat</option>
+          <div class="form-group">
+            <label for="proj-team-type">Modalitat de treball</label>
+            <select id="proj-team-type">
+              <option value="individual">Individual</option>
+              <option value="group">En grup</option>
             </select>
           </div>
-
-          <div class="form-grid-2">
-            <div id="proj-collaborator-option-wrap" hidden>
-              <label class="checkbox-inline">
-                <input type="checkbox" id="proj-seeking-collaborator" />
-                <span>Busquem una persona que vulgui col·laborar</span>
-              </label>
+          <div id="proj-participants-wrap" hidden>
+            <div class="form-group">
+              <label for="proj-registered-participant">Afegir company/a registrat</label>
+              <select id="proj-registered-participant"></select>
             </div>
+            <div class="form-group">
+              <label for="proj-participants">Participants (separats per comes)</label>
+              <input type="text" id="proj-participants" placeholder="Laia Puig, Pol Vila..." />
+            </div>
+          </div>
+          <div id="proj-collaborator-option-wrap" hidden>
+            <label class="checkbox-inline">
+              <input type="checkbox" id="proj-seeking-collaborator" />
+              <span>Busquem algun col·laborador extern per a aquest projecte</span>
+            </label>
             <div class="form-group" id="proj-collab-role-wrap" hidden>
-              <label for="proj-collab-role">Rol o ajuda necessària</label>
+              <label for="proj-collab-role">Perfil buscat</label>
               <select id="proj-collab-role">
                 <option value="Dissenyador/a gràfic/a">Dissenyador/a gràfic/a</option>
-                <option value="Fotògraf/a">Fotògraf/a</option>
-                <option value="Programador/a">Programador/a</option>
-                <option value="Editor/a de vídeo">Editor/a de vídeo</option>
-                <option value="Altres perfils">Altres perfils</option>
+                <option value="Disseny sonor">Disseny sonor</option>
+                <option value="Direcció de fotografia">Direcció de fotografia</option>
+                <option value="Muntatge / Edició">Muntatge / Edició</option>
+                <option value="Animació / 3D">Animació / 3D</option>
+                <option value="UI/UX">UI/UX</option>
               </select>
             </div>
           </div>
-
         </section>
 
-        <section class="project-wizard-step" data-project-step="5" hidden>
-          <div class="form-section-title">5. Multimèdia</div>
+        <section data-project-step="5" hidden>
+          <div class="form-section-title">5. Material multimèdia</div>
           <div class="form-group">
-            <label for="proj-media-images">Fotos del projecte</label>
-            <input id="proj-media-images" type="file" accept="image/*" multiple />
-            <small>Afegeix totes les fotos que vulguis. Es podran referenciar als comentaris del projecte.</small>
+            <label for="proj-media-url">Enllaç extern (Figma, Vimeo, Drive, YouTube...)</label>
+            <input type="url" id="proj-media-url" placeholder="https://..." />
           </div>
-          <div id="proj-media-images-preview" class="project-media-upload-preview"></div>
-          <div class="form-grid-2">
-            <div class="form-group">
-              <label for="proj-media-url">Enllaç multimèdia (Vimeo, YouTube, Drive, PDF)</label>
-              <input type="url" id="proj-media-url" placeholder="https://vimeo.com/..." />
-            </div>
-          </div>
-        </section>
-
-        <section class="project-wizard-step" data-project-step="6" hidden>
-          <div class="form-section-title">6. Feedback</div>
-          <div class="form-grid-2">
-            <div class="form-group">
-              <label for="proj-feedback-type">Tipus de feedback buscat *</label>
-              <input type="text" id="proj-feedback-type" required placeholder="Ex: Ritme de muntatge, etalonatge i mescla sonora" />
-            </div>
-          </div>
-
           <div class="form-group">
-            <label for="proj-questions">Preguntes concretes per als companys</label>
-            <textarea id="proj-questions" rows="2" placeholder="Ex: S'entén el gir narratiu al minut 2? Què milloraríeu de la tipografia?"></textarea>
+            <label for="proj-media-images">Imatges addicionals de la galeria</label>
+            <input type="file" id="proj-media-images" accept="image/*" multiple />
+          </div>
+          <div id="proj-media-images-preview" class="project-media-upload-grid"></div>
+        </section>
+
+        <section data-project-step="6" hidden>
+          <div class="form-section-title">6. Tipus de feedback que necessites</div>
+          <div class="form-group">
+            <label for="proj-feedback-type">En què vols que es fixin els companys? *</label>
+            <input type="text" id="proj-feedback-type" required placeholder="Ex: Composició tipogràfica, ritme del muntatge, usabilitat..." />
+          </div>
+          <div class="form-group">
+            <label for="proj-questions">Pregunta concreta per a la comunitat</label>
+            <textarea id="proj-questions" rows="2" placeholder="Ex: Funciona millor la versió en blanc i negre o la de color?"></textarea>
           </div>
         </section>
 
+        <div class="form-error hidden" id="proj-form-error" role="alert"></div>
         <div class="modal-actions">
-          <button type="button" class="btn-secondary" data-close-modal="modal-publish-project">Cancel·lar</button>
-          <button type="button" id="proj-wizard-back" class="btn-secondary hidden">Enrere</button>
-          <button type="button" id="proj-wizard-next" class="btn-primary">Següent</button>
-          <button type="submit" id="proj-wizard-submit" class="btn-primary hidden">Publicar projecte (+10 pts)</button>
+          <button type="button" class="btn-secondary hidden" id="proj-wizard-back">Enrere</button>
+          <button type="button" class="btn-primary" id="proj-wizard-next">Següent</button>
+          <button type="submit" class="btn-primary hidden" id="proj-wizard-submit">Publicar projecte</button>
         </div>
       </form>
     </div>
@@ -743,20 +770,24 @@
 
   <!-- MODAL: PUBLISH OPEN POSITION -->
   <div class="modal-backdrop hidden" id="modal-publish-position" role="dialog" aria-modal="true" aria-labelledby="modal-pos-title">
-    <div class="modal-card modal-large">
+    <div class="modal-card">
       <div class="modal-header">
-        <h2 id="modal-pos-title">Publicar posició oberta</h2>
+        <h2 id="modal-pos-title">Publicar una posició oberta</h2>
         <button type="button" class="modal-close-btn" data-close-modal="modal-publish-position" aria-label="Tancar">&times;</button>
       </div>
-      <form id="publish-position-form" class="modal-form" novalidate>
+      <form id="publish-position-form" class="modal-form">
+        <div class="form-group">
+          <label for="pos-title">Títol de la posició *</label>
+          <input type="text" id="pos-title" required placeholder="Ex: Dissenyador/a sonor per a curtmetratge" />
+        </div>
+        <div class="form-group">
+          <label for="pos-project-name">Nom del projecte *</label>
+          <input type="text" id="pos-project-name" required placeholder="Ex: Ecos del Ter" />
+        </div>
         <div class="form-grid-2">
           <div class="form-group">
-            <label for="pos-title">Títol de la posició *</label>
-            <input type="text" id="pos-title" required placeholder="Ex: Busquem Dissenyador/a Sonor per a curtmetratge" />
-          </div>
-          <div class="form-group">
-            <label for="pos-role">Rol requerit *</label>
-            <select id="pos-role" required>
+            <label for="pos-role">Rol / Especialitat *</label>
+            <select id="pos-role">
               <option value="Disseny sonor">Disseny sonor</option>
               <option value="Direcció de fotografia">Direcció de fotografia</option>
               <option value="Direcció">Direcció</option>
@@ -768,17 +799,12 @@
               <option value="Guió">Guió</option>
             </select>
           </div>
+          <div class="form-group">
+            <label for="pos-spots">Places disponibles</label>
+            <input type="number" id="pos-spots" min="1" max="10" value="1" />
+          </div>
         </div>
-
-        <div class="form-grid-3">
-          <div class="form-group">
-            <label for="pos-project-name">Nom del projecte *</label>
-            <input type="text" id="pos-project-name" required placeholder="Ex: La Nit de Sant Joan" />
-          </div>
-          <div class="form-group">
-            <label for="pos-spots">Places necessàries</label>
-            <input type="number" id="pos-spots" min="1" max="15" value="1" />
-          </div>
+        <div class="form-grid-2">
           <div class="form-group">
             <label for="pos-compensation">Compensació</label>
             <select id="pos-compensation">
@@ -788,9 +814,16 @@
               <option value="Unpaid">No remunerat</option>
             </select>
           </div>
+          <div class="form-group">
+            <label for="pos-location">Modalitat</label>
+            <select id="pos-location">
+              <option value="In person">Presencial (Girona / Salt)</option>
+              <option value="Hybrid">Híbrid</option>
+              <option value="Remote">Remot</option>
+            </select>
+          </div>
         </div>
-
-        <div class="form-grid-3">
+        <div class="form-grid-2">
           <div class="form-group">
             <label for="pos-start">Data d'inici *</label>
             <input type="date" id="pos-start" required />
@@ -799,44 +832,33 @@
             <label for="pos-end">Data de finalització *</label>
             <input type="date" id="pos-end" required />
           </div>
-          <div class="form-group">
-            <label for="pos-location">Modalitat / Ubicació</label>
-            <select id="pos-location">
-              <option value="In person">Presencial (Girona / Salt)</option>
-              <option value="Hybrid">Híbrid</option>
-              <option value="Remote">Remot</option>
-            </select>
-          </div>
         </div>
-
         <div class="form-grid-3">
           <div class="form-group">
-            <label for="pos-project-type">Àmbit del projecte</label>
+            <label for="pos-project-type">Tipus</label>
             <select id="pos-project-type">
-              <option value="Academic">Acadèmic (ERAM)</option>
-              <option value="Personal">Personal / Festival</option>
+              <option value="Academic">Acadèmic</option>
+              <option value="Personal">Personal</option>
             </select>
           </div>
           <div class="form-group">
-            <label for="pos-subject">Assignatura (si escau)</label>
-            <input type="text" id="pos-subject" placeholder="Ex: Projectes Audiovisuals II" />
+            <label for="pos-subject">Assignatura</label>
+            <input type="text" id="pos-subject" placeholder="Opcional" />
           </div>
           <div class="form-group">
-            <label for="pos-year">Curs acadèmic</label>
+            <label for="pos-year">Curs</label>
             <select id="pos-year">
               <option value="1r Curs">1r Curs</option>
               <option value="2n Curs">2n Curs</option>
-              <option value="3r Curs" selected>3r Curs</option>
+              <option value="3r Curs">3r Curs</option>
               <option value="4t Curs (TFG)">4t Curs (TFG)</option>
             </select>
           </div>
         </div>
-
         <div class="form-group">
-          <label for="pos-description">Descripció i requisits *</label>
-          <textarea id="pos-description" rows="3" required placeholder="Detalla tasques, disponibilitat, equipament o programari necessari..."></textarea>
+          <label for="pos-description">Descripció de les tasques i requisits *</label>
+          <textarea id="pos-description" rows="3" required placeholder="Detalla què es necessita, dies de rodatge o eines recomanades..."></textarea>
         </div>
-
         <div class="modal-actions">
           <button type="button" class="btn-secondary" data-close-modal="modal-publish-position">Cancel·lar</button>
           <button type="submit" class="btn-primary">Publicar posició</button>
@@ -854,17 +876,17 @@
       </div>
       <form id="apply-position-form" class="modal-form">
         <input type="hidden" id="apply-pos-id" />
-        <p class="modal-subtitle" id="apply-pos-summary"></p>
+        <p id="apply-pos-summary" style="font-weight: 600; margin: 0;"></p>
         <div class="form-group">
-          <label for="apply-intro">Presentació breu *</label>
-          <textarea id="apply-intro" rows="3" required placeholder="Explica per què t'interessa aquest projecte..."></textarea>
+          <label for="apply-intro">Presentació i motivació *</label>
+          <textarea id="apply-intro" rows="3" required placeholder="Explica per què t'interessa aquest rol i la teva disponibilitat..."></textarea>
         </div>
         <div class="form-group">
-          <label for="apply-skills">Experiència i eines</label>
-          <input type="text" id="apply-skills" placeholder="Ex: Pro Tools, enregistrament amb Zoom F6, 2 curts previs" />
+          <label for="apply-skills">Habilitats i eines que domines</label>
+          <input type="text" id="apply-skills" placeholder="Ex: Premiere Pro, DaVinci Resolve, Pro Tools..." />
         </div>
         <div class="form-group">
-          <label for="apply-portfolio-project">Adjunta un projecte del teu portafoli</label>
+          <label for="apply-portfolio-project">Projecte del teu portafoli de mostra</label>
           <select id="apply-portfolio-project"></select>
         </div>
         <div class="modal-actions">
@@ -877,7 +899,7 @@
 
   <!-- MODAL: EDIT PROFILE -->
   <div class="modal-backdrop hidden" id="modal-edit-profile" role="dialog" aria-modal="true" aria-labelledby="modal-edit-profile-title">
-    <div class="modal-card">
+    <div class="modal-card modal-large">
       <div class="modal-header">
         <h2 id="modal-edit-profile-title">Editar perfil</h2>
         <button type="button" class="modal-close-btn" data-close-modal="modal-edit-profile" aria-label="Tancar">&times;</button>
@@ -894,34 +916,40 @@
           </div>
         </div>
         <div class="form-group">
-          <label for="edit-profile-email">Correu electrònic *</label>
+          <label for="edit-profile-email">Correu institucional *</label>
           <input type="email" id="edit-profile-email" required />
-        </div>
-        <div class="form-group">
-          <label>Assignatures seleccionades</label>
-          <div class="edit-profile-subject-list" id="edit-profile-subject-list"></div>
-          <label for="edit-profile-subject-input">Afegir assignatures disponibles</label>
-          <input type="search" id="edit-profile-subject-input" placeholder="Cerca una assignatura" autocomplete="off" />
-          <div class="edit-profile-subject-options" id="edit-profile-subject-options" aria-label="Assignatures disponibles"></div>
         </div>
         <div class="form-grid-2">
           <div class="form-group">
-            <label for="edit-profile-password">Contrasenya nova</label>
+            <label for="edit-profile-avatar">Canviar fotografia</label>
+            <input type="file" id="edit-profile-avatar" accept="image/*" />
+          </div>
+          <div class="form-group">
+            <label for="edit-profile-avatar-color">Color d'inicials</label>
+            <div style="display:flex; gap:10px; align-items:center;">
+              <input type="color" id="edit-profile-avatar-color" value="#8f7cf6" />
+              <button type="button" class="text-link-btn" id="edit-profile-remove-avatar">Usar inicials</button>
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Assignatures seleccionades</label>
+          <div id="edit-profile-subject-list" class="edit-profile-subject-list"></div>
+        </div>
+        <div class="form-group">
+          <label for="edit-profile-subject-input">Afegir assignatures</label>
+          <input type="search" id="edit-profile-subject-input" placeholder="Cerca una assignatura..." autocomplete="off" />
+          <div id="edit-profile-subject-options" class="edit-profile-subject-options"></div>
+        </div>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label for="edit-profile-password">Nova contrasenya (opcional)</label>
             <input type="password" id="edit-profile-password" minlength="8" autocomplete="new-password" />
           </div>
           <div class="form-group">
             <label for="edit-profile-password-confirm">Confirma la contrasenya</label>
             <input type="password" id="edit-profile-password-confirm" minlength="8" autocomplete="new-password" />
           </div>
-        </div>
-        <div class="form-group">
-          <label for="edit-profile-avatar">Fotografia de perfil</label>
-          <input type="file" id="edit-profile-avatar" accept="image/*" />
-          <button type="button" class="text-link-btn" id="edit-profile-remove-avatar">Eliminar fotografia i tornar a les inicials</button>
-        </div>
-        <div class="form-group">
-          <label for="edit-profile-avatar-color">Color de les inicials</label>
-          <input type="color" id="edit-profile-avatar-color" value="#8f7cf6" />
         </div>
         <div class="form-error hidden" id="edit-profile-error"></div>
         <div class="modal-actions">
@@ -932,31 +960,30 @@
     </div>
   </div>
 
-  <!-- MODAL: LEVELS -->
+  <!-- MODAL: LEVELS & SUBJECT DETAILS -->
   <div class="modal-backdrop hidden" id="modal-levels" role="dialog" aria-modal="true" aria-labelledby="modal-levels-title">
     <div class="modal-card">
       <div class="modal-header">
-        <h2 id="modal-levels-title">Sistema de nivells</h2>
+        <h2 id="modal-levels-title">Sistema de nivells ERAM</h2>
         <button type="button" class="modal-close-btn" data-close-modal="modal-levels" aria-label="Tancar">&times;</button>
       </div>
-      <div class="modal-form" id="levels-content"></div>
+      <div id="levels-content"></div>
     </div>
   </div>
 
-  <!-- MODAL: SUBJECT -->
   <div class="modal-backdrop hidden" id="modal-subject" role="dialog" aria-modal="true" aria-labelledby="modal-subject-title">
     <div class="modal-card">
       <div class="modal-header">
-        <h2 id="modal-subject-title">Assignatura</h2>
+        <h2 id="modal-subject-title">Detall de l'assignatura</h2>
         <button type="button" class="modal-close-btn" data-close-modal="modal-subject" aria-label="Tancar">&times;</button>
       </div>
-      <div class="modal-form" id="subject-content"></div>
+      <div id="subject-content"></div>
     </div>
   </div>
 
-  <!-- TOAST FEEDBACK CONTAINER -->
+  <!-- TOAST NOTIFICATION CONTAINER -->
   <div id="toast-container" class="toast-container" aria-live="polite"></div>
 
-  <script src="script.js"></script>
+  <script type="module" src="script.js"></script>
 </body>
 </html>

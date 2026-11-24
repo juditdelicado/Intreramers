@@ -245,6 +245,19 @@ body:not(.authenticated) .app-main {
   padding: 0;
 }
 
+.auth-subjects[hidden] {
+  display: none !important;
+}
+
+.auth-subjects-empty {
+  margin: 12px 0 18px;
+  padding: 14px 16px;
+  border: 1px dashed var(--border-light);
+  border-radius: 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
 .auth-role-fieldset legend,
 .auth-subjects legend {
   margin-bottom: 8px;
@@ -313,6 +326,7 @@ body:not(.authenticated) .app-main {
   color: #fff;
   font-size: 34px;
   font-weight: 700;
+  line-height: 1;
   overflow: hidden;
 }
 
@@ -320,6 +334,10 @@ body:not(.authenticated) .app-main {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.auth-avatar-preview [hidden] {
+  display: none !important;
 }
 
 .auth-upload-btn {
@@ -379,17 +397,34 @@ body:not(.authenticated) .app-main {
 .auth-subject-options label {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 34px;
-  border: 1px solid var(--border-light);
-  border-radius: 999px;
-  padding: 6px 10px;
-  font-size: 12px;
+  min-height: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  padding: 4px 12px;
   cursor: pointer;
 }
 
-.auth-subject-options input:checked {
-  accent-color: #161616;
+.auth-subject-options .auth-subject-pill {
+  position: relative;
+}
+
+.auth-subject-options .auth-subject-pill.selected {
+  background: var(--text-primary);
+  color: #fff;
+}
+
+.auth-subject-options .auth-subject-pill:focus-within {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
+.auth-subject-options input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .auth-suggested-subjects,
@@ -417,6 +452,13 @@ body:not(.authenticated) .app-main {
   background: var(--bg-subtle);
   padding: 0 12px;
   outline: none;
+}
+
+.auth-subject-search-help {
+  display: block;
+  margin: -2px 0 8px;
+  color: var(--text-secondary);
+  font-size: 11.5px;
 }
 
 .auth-submit {
@@ -2803,6 +2845,16 @@ body:not(.authenticated) .app-main {
 
 .project-wizard-step[hidden] {
   display: none !important;
+}
+
+.auth-register-step[hidden] {
+  display: none !important;
+}
+
+.auth-register-actions .auth-submit {
+  width: auto;
+  min-width: 150px;
+  padding: 0 18px;
 }
 
 .modal-close-btn {
