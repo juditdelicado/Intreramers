@@ -1601,10 +1601,10 @@
           </section>
         ` : ""}
         ${isOwner ? `
-          <section class="project-management-section" aria-label="Gestionar projecte">
+          <section class="project-management-section" id="project-management-section" aria-label="Gestionar projecte">
             <div>
-              <h2>Gestionar projecte</h2>
-              <p>Els projectes arxivats es conserven al teu perfil, però no apareixen a les llistes públiques.</p>
+              <h2>Arxivar o eliminar el projecte</h2>
+              <p>Arxivar-lo el conservarà al teu perfil i l’amagarà de les llistes públiques. Eliminar-lo esborrarà també els comentaris.</p>
             </div>
             <div class="project-management-actions">
               <button type="button" class="btn-secondary-pill" id="archive-project-btn">${proj.archived ? "Desarxivar projecte" : "Arxivar projecte"}</button>
