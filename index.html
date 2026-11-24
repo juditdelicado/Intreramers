@@ -166,13 +166,18 @@
 
         <fieldset class="auth-subjects">
           <legend id="auth-subjects-label">Assignatures matriculades</legend>
-          <div class="auth-subject-options">
-            <label><input type="checkbox" value="Direcció Cinematogràfica" /> Direcció Cinematogràfica</label>
-            <label><input type="checkbox" value="Disseny Interfícies" /> Disseny d'interfícies</label>
-            <label><input type="checkbox" value="Fotografia" /> Fotografia</label>
-            <label><input type="checkbox" value="Muntatge" /> Muntatge</label>
-            <label><input type="checkbox" value="Animació i 3D" /> Animació i 3D</label>
-            <label><input type="checkbox" value="Projectes Multimèdia" /> Projectes Multimèdia</label>
+          <div class="auth-suggested-subjects">
+            <span class="auth-subject-section-title">Suggerides pel curs</span>
+            <div class="auth-subject-options" id="auth-suggested-subject-options"></div>
+          </div>
+          <div class="auth-subject-search">
+            <label for="auth-subject-search-input">Buscar altres assignatures</label>
+            <input type="search" id="auth-subject-search-input" placeholder="Ex: Disseny interactiu" autocomplete="off" />
+            <div class="auth-subject-options" id="auth-subject-search-results"></div>
+          </div>
+          <div class="auth-selected-subjects">
+            <span class="auth-subject-section-title">Assignatures seleccionades</span>
+            <div class="auth-subject-options" id="auth-selected-subject-options"></div>
           </div>
         </fieldset>
 

@@ -6,6 +6,80 @@
 (() => {
   const STORAGE_KEY = "eram_creative_network_v1";
   const SESSION_KEY = "eram_creative_network_session";
+  const STUDY_SUBJECTS = {
+    "1r Curs": [
+      "Fonaments del disseny gràfic",
+      "Llenguatge cinematogràfic",
+      "Teoria i anàlisi de la imatge",
+      "Disseny i creació del so digital",
+      "Estètica i teoria de l'art",
+      "Fonaments de la multimèdia",
+      "Fotografia",
+      "Operativa de càmera i il·luminació",
+      "Projecte audiovisual I",
+      "Tecnologia audiovisual i del so",
+      "Teoria i tècnica del muntatge"
+    ],
+    "2n Curs": [
+      "Cultura i pensament",
+      "Llenguatges contemporanis",
+      "Metodologies i tècniques creatives",
+      "Producció audiovisual i multimèdia",
+      "Projecte creatiu",
+      "3D I",
+      "Projectes de disseny gràfic",
+      "Sociologia i teoria de la comunicació",
+      "Tecnologies multimèdia"
+    ],
+    "3r Curs": [
+      "Creació d'empreses",
+      "Direcció de projectes transmèdia",
+      "Estructures i dispositius narratius",
+      "Guió videogràfic",
+      "Màrqueting",
+      "Taller de generació d'idees",
+      "Assignatures optatives"
+    ],
+    "4t Curs (TFG)": [
+      "Pràctiques",
+      "Projecte transmèdia: Eines",
+      "Projecte transmèdia: Expressió",
+      "Projecte transmèdia: Idea",
+      "Treball final de grau (TFG)",
+      "Reconeixement acadèmic",
+      "Assignatures optatives"
+    ]
+  };
+
+  const OPTIONAL_SUBJECTS = [
+    "3D II",
+    "3D III",
+    "Direcció audiovisual",
+    "Direcció d'actors",
+    "Direcció d'art",
+    "Direcció de fotografia",
+    "Disseny audiovisual",
+    "Disseny del so",
+    "Disseny interactiu",
+    "Edició de vídeo",
+    "Escena per l'audiovisual",
+    "Fotografia creativa",
+    "Il·lustració",
+    "Projecte audiovisual II",
+    "Projectes de disseny gràfic II",
+    "Realitat immersiva",
+    "Redacció i desenvolupament del guió",
+    "Seminaris complementaris",
+    "Tecnologies creatives",
+    "Tecnologies multimèdia II"
+  ];
+
+  const ALL_STUDY_SUBJECTS = [
+    ...new Set([
+      ...Object.values(STUDY_SUBJECTS).flat(),
+      ...OPTIONAL_SUBJECTS
+    ])
+  ];
   const COMMENT_REWARDS = Object.freeze({ first: 15, second: 10, third: 7, subsequent: 5 });
 
   // Helper to generate relative ISO dates so deadlines stay realistic
@@ -2755,6 +2829,65 @@
       reader.readAsDataURL(file);
     });
 
+    const selectedSubjects = new Set();
+    const suggestedContainer = document.getElementById("auth-suggested-subject-options");
+    const searchContainer = document.getElementById("auth-subject-search-results");
+    const selectedContainer = document.getElementById("auth-selected-subject-options");
+    const searchInput = document.getElementById("auth-subject-search-input");
+
+    const renderSubjectOptions = (container, subjects) => {
+      container.innerHTML = subjects.map((subject) => {
+        const checked = selectedSubjects.has(subject);
+        return `<label><input type="checkbox" value="${escapeHtml(subject)}" ${checked ? "checked" : ""} /> ${escapeHtml(subject)}</label>`;
+      }).join("");
+      container.querySelectorAll("input").forEach((input) => {
+        input.addEventListener("change", () => {
+          if (input.checked) selectedSubjects.add(input.value);
+          else selectedSubjects.delete(input.value);
+          renderAllSubjectLists();
+        });
+      });
+    };
+
+    const renderSuggestedSubjects = () => {
+      const year = document.getElementById("auth-year").value;
+      let subjects = STUDY_SUBJECTS[year] || [];
+      if (year === "3r Curs" || year === "4t Curs (TFG)") {
+        subjects = [...subjects, ...OPTIONAL_SUBJECTS];
+      }
+      renderSubjectOptions(suggestedContainer, subjects);
+    };
+
+    const renderSearchResults = () => {
+      const query = searchInput.value.trim().toLowerCase();
+      const matches = ALL_STUDY_SUBJECTS.filter((subject) =>
+        !query || subject.toLowerCase().includes(query)
+      ).slice(0, query ? 20 : 10);
+      renderSubjectOptions(searchContainer, matches);
+    };
+
+    const renderSelectedSubjects = () => {
+      selectedContainer.innerHTML = [...selectedSubjects].map((subject) =>
+        `<label><input type="checkbox" value="${escapeHtml(subject)}" checked /> ${escapeHtml(subject)}</label>`
+      ).join("");
+      selectedContainer.querySelectorAll("input").forEach((input) => {
+        input.addEventListener("change", () => {
+          selectedSubjects.delete(input.value);
+          renderAllSubjectLists();
+        });
+      });
+    };
+
+    const renderAllSubjectLists = () => {
+      renderSuggestedSubjects();
+      renderSearchResults();
+      renderSelectedSubjects();
+    };
+
+    searchInput.addEventListener("input", renderSearchResults);
+    document.getElementById("auth-year").addEventListener("change", renderAllSubjectLists);
+    renderAllSubjectLists();
+
     document.querySelectorAll("input[name='auth-role']").forEach((radio) => {
       radio.addEventListener("change", () => {
         const alumni = radio.value === "alumni" && radio.checked;
@@ -2773,6 +2906,7 @@
             `<option value="3r Curs">3r Curs</option>` +
             `<option value="4t Curs (TFG)">4t Curs (TFG)</option>`;
         }
+        renderSuggestedSubjects();
       });
     });
 
@@ -2805,8 +2939,7 @@
       errBox.classList.add("hidden");
       const role = document.querySelector("input[name='auth-role']:checked").value;
       const color = document.getElementById("auth-avatar-color").value;
-      const subjects = Array.from(document.querySelectorAll(".auth-subject-options input:checked"))
-        .map((input) => input.value);
+      const subjects = [...selectedSubjects];
       const avatar = uploadedAvatar || makeInitialAvatar(fullName, color);
       const newStudent = {
         id: "stu-" + Date.now(),
