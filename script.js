@@ -2310,12 +2310,14 @@
             ${studentSubjects.length ? `
               <details class="profile-subjects-dropdown">
                 <summary>Assignatures seleccionades (${studentSubjects.length})</summary>
-                <div class="profile-subject-tags">
-                  ${studentSubjects.map((tag) => `<button type="button" class="pill-tag subject-tag" data-subject="${escapeHtml(tag)}" style="border:0;cursor:pointer;">${escapeHtml(tag)}</button>`).join("")}
+                <div class="profile-subject-panel">
+                  <div class="profile-subject-tags">
+                    ${studentSubjects.map((tag) => `<button type="button" class="pill-tag subject-tag" data-subject="${escapeHtml(tag)}" style="border:0;cursor:pointer;">${escapeHtml(tag)}</button>`).join("")}
+                  </div>
+                  ${student.id === state.currentUserId ? `
+                    <button type="button" class="profile-subject-edit-btn" id="open-profile-subject-edit">Editar assignatures</button>
+                  ` : ""}
                 </div>
-                ${student.id === state.currentUserId ? `
-                  <button type="button" class="profile-subject-edit-btn" id="open-profile-subject-edit">Editar assignatures</button>
-                ` : ""}
               </details>
             ` : ""}
             ${student.id === state.currentUserId ? `
@@ -2623,6 +2625,21 @@
 
   function closeAllPopovers() {
     document.querySelectorAll(".popover-menu").forEach((m) => m.classList.add("hidden"));
+    document.getElementById("popover-underlay")?.classList.add("hidden");
+  }
+
+  function refreshPopoverUnderlay() {
+    const underlay = document.getElementById("popover-underlay");
+    const openMenu = document.querySelector(".popover-menu:not(.hidden)");
+    if (!underlay || !openMenu) {
+      underlay?.classList.add("hidden");
+      return;
+    }
+    const rect = openMenu.getBoundingClientRect();
+    underlay.style.left = `${rect.left}px`;
+    underlay.style.top = `${rect.bottom - 1}px`;
+    underlay.style.width = `${rect.width}px`;
+    underlay.style.height = `${Math.min(window.innerWidth <= 680 ? 140 : 180, Math.max(0, window.innerHeight - rect.bottom))}px`;
   }
 
   function showToast(message) {
@@ -2832,6 +2849,11 @@
         closeAllPopovers();
         if (wasHidden) {
           menu.classList.remove("hidden");
+          const underlay = document.getElementById("popover-underlay");
+          if (underlay) {
+            underlay.classList.remove("hidden");
+            refreshPopoverUnderlay();
+          }
         }
       });
     };
@@ -2848,6 +2870,8 @@
     document.addEventListener("click", (e) => {
       if (!e.target.closest(".dropdown-anchor")) closeAllPopovers();
     });
+    window.addEventListener("resize", refreshPopoverUnderlay);
+    window.addEventListener("scroll", refreshPopoverUnderlay, true);
 
     // Mark notifications as read
     document.getElementById("mark-all-read-btn").addEventListener("click", () => {
