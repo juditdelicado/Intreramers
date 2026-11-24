@@ -377,11 +377,11 @@
       },
       {
         id: "proj-3",
-        title: "Llum de Tramuntana — Sèrie Retrat Analògic",
+        title: "Llum de paisatge - sèrie analògica",
         category: "Fotografia",
         aspect: "span-square",
-        cover: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=900&q=80",
-        description: "Sèrie de 12 retrats en format mitjà (Kodak Portra 400) explorant l'impacte del vent de tramuntana en espais costaners de l'Empordà.",
+        cover: "llum de paisatge.jpg",
+        description: "Sèrie de 12 fotografies de paisatge en format mitjà (Kodak Portra 400) on la llum natural transforma boscos, camps i espais oberts.",
         briefing: "Sense il·luminació artificial; aprofitar l'hora blava i el gra natural del negatiu escanejat.",
         subject: "Fotografia Documental",
         professor: "Prof. Jordi Casals",
@@ -534,7 +534,7 @@
         title: "Escultura Orgànica — Simulació de Fluids",
         category: "3D",
         aspect: "span-portrait",
-        cover: "https://images.unsplash.com/photo-1633356122544-f134324a6cee?auto=format&fit=crop&w=900&q=80",
+        cover: "escultura organica.jpg",
         description: "Peces visuals abstractes generades amb Houdini per a la capçalera d'un programa cultural.",
         briefing: "Moviment lent, materials translúcids i renderitzat físicament realista.",
         subject: "Animació i Simulació 3D",
@@ -758,6 +758,55 @@
   let state = loadState();
   if (!state || !Array.isArray(state.students) || !Array.isArray(state.projects)) {
     state = structuredClone(INITIAL_STATE);
+  }
+  const ACCOUNT_RESET_KEY = "eram_creative_network_accounts_reset_v1";
+  if (!localStorage.getItem(ACCOUNT_RESET_KEY)) {
+    const initialStudentIds = new Set(INITIAL_STATE.students.map((student) => student.id));
+    const hadGeneratedAccounts = state.students.some((student) => !initialStudentIds.has(student.id));
+    if (hadGeneratedAccounts) {
+      state.students = state.students.filter((student) => initialStudentIds.has(student.id));
+      state.currentUserId = INITIAL_STATE.currentUserId;
+    }
+    localStorage.removeItem(SESSION_KEY);
+    sessionStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem("eram_password_reset");
+    state.currentUserId = INITIAL_STATE.currentUserId;
+    saveState();
+    localStorage.setItem(ACCOUNT_RESET_KEY, "1");
+  }
+  const initialAvatarColors = ["#7c6ee6", "#d67a7a", "#4e9c82", "#4b87c5", "#c18b4b", "#9a72b8"];
+  let profilesMigrated = false;
+  state.students.forEach((student, index) => {
+    if (/^https?:\/\//i.test(student.avatar || "")) {
+      student.avatarColor = student.avatarColor || initialAvatarColors[index % initialAvatarColors.length];
+      student.avatar = makeInitialAvatar(student.name, student.avatarColor);
+      profilesMigrated = true;
+    }
+  });
+  if (profilesMigrated) {
+    saveState();
+  }
+  const tramuntanaProject = state.projects.find((project) => project.id === "proj-3");
+  let projectMigrated = false;
+  if (tramuntanaProject && tramuntanaProject.title === "Llum de Tramuntana — Sèrie Retrat Analògic") {
+    tramuntanaProject.title = "Llum de paisatge - sèrie analògica";
+    projectMigrated = true;
+  }
+  if (tramuntanaProject && tramuntanaProject.cover === "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=900&q=80") {
+    tramuntanaProject.cover = "llum de paisatge.jpg";
+    projectMigrated = true;
+  }
+  if (tramuntanaProject && tramuntanaProject.description === "Sèrie de 12 retrats en format mitjà (Kodak Portra 400) explorant l'impacte del vent de tramuntana en espais costaners de l'Empordà.") {
+    tramuntanaProject.description = "Sèrie de 12 fotografies de paisatge en format mitjà (Kodak Portra 400) on la llum natural transforma boscos, camps i espais oberts.";
+    projectMigrated = true;
+  }
+  const organicSculptureProject = state.projects.find((project) => project.id === "proj-10");
+  if (organicSculptureProject && organicSculptureProject.cover === "https://images.unsplash.com/photo-1633356122544-f134324a6cee?auto=format&fit=crop&w=900&q=80") {
+    organicSculptureProject.cover = "escultura organica.jpg";
+    projectMigrated = true;
+  }
+  if (projectMigrated) {
+    saveState();
   }
   const initialStudentIds = new Set(state.students.map((student) => student.id));
   INITIAL_STATE.students.forEach((student) => {
@@ -3733,6 +3782,11 @@
 
       if (!email.endsWith("@campus.eram.cat")) {
         errBox.textContent = "Només es permet el correu institucional @campus.eram.cat.";
+        errBox.classList.remove("hidden");
+        return;
+      }
+      if (state.students.some((student) => student.email.toLowerCase() === email)) {
+        errBox.textContent = "Ja existeix un compte amb aquest correu. Inicia sessió amb aquest correu.";
         errBox.classList.remove("hidden");
         return;
       }
