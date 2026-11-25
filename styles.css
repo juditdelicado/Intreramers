@@ -588,18 +588,7 @@
   .nav-brand-menu {
     left: 0;
     right: auto;
-    min-width: 220px;
-  }
-  
-  .nav-brand-menu .popover-item {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-  
-  .nav-brand-menu .popover-item small {
-    color: var(--text-secondary);
-    font-size: 11.5px;
+    min-width: 268px;
   }
   
   .nav-pill {
@@ -792,7 +781,7 @@
   
   .popover-underlay {
     position: fixed;
-    z-index: 125;
+    z-index: 119;
     border-radius: 22px;
     background: rgba(255, 255, 255, 0.42);
     -webkit-backdrop-filter: blur(44px) saturate(190%);
@@ -806,7 +795,7 @@
     top: calc(100% + 12px);
     right: 0;
     min-width: 240px;
-    background: rgba(255, 255, 255, 0.48);
+    background: rgba(255, 255, 255, 0.36);
     border: 1px solid rgba(255, 255, 255, 0.88);
     border-radius: 22px;
     box-shadow:
@@ -1389,7 +1378,7 @@
     aspect-ratio: var(--project-gallery-ratio, 3/4);
     max-height: calc(100dvh - var(--project-detail-sticky-top) - 24px);
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     background: transparent;
     border: 0;
@@ -2060,6 +2049,15 @@
     background: #ffffff;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
   }
+
+  .conv-item.unread .conv-info strong {
+    font-weight: 800;
+  }
+
+  .conv-item.unread .conv-info p {
+    color: var(--text-primary);
+    font-weight: 700;
+  }
   
   .conv-item img {
     width: 40px;
@@ -2111,6 +2109,17 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
+  }
+
+  .chat-typing-status {
+    display: block;
+    color: var(--text-secondary);
+    font-size: 11.5px;
+    font-weight: 600;
+  }
+
+  .chat-typing-status:empty {
+    display: none;
   }
   
   .chat-messages-scroll {

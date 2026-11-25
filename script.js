@@ -14,6 +14,8 @@ import {
   deleteDoc,
   collection,
   onSnapshot,
+  runTransaction,
+  deleteField,
   writeBatch
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {
@@ -674,7 +676,8 @@ import {
     });
     onSnapshot(collection(db, "conversations"), (snap) => {
       state.conversations = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      if (ui.route === "messages") renderMessagesView();
+      updateHeaderChrome();
+      if (ui.route === "messages") refreshMessagesView();
     });
     onSnapshot(collection(db, "notifications"), (snap) => {
       state.notifications = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -1080,11 +1083,10 @@ import {
     );
     if (alreadyAwarded) return false;
 
-    const student = getStudentById(userId);
-    const newPoints = (student.points || 0) + points;
-    const entryId = "pt-" + Date.now() + Math.random().toString(36).slice(2, 6);
-
     try {
+      const student = getStudentById(userId);
+      const newPoints = (student.points || 0) + points;
+      const entryId = "pt-" + Date.now() + Math.random().toString(36).slice(2, 6);
       await setDoc(doc(db, "students", userId), { points: newPoints }, { merge: true });
       await setDoc(doc(db, "pointsLedger", entryId), {
         id: entryId,
@@ -1101,6 +1103,41 @@ import {
     } catch (e) {
       console.warn("Error sumant punts:", e);
       return false;
+    }
+  }
+
+  async function awardFirstOwnProfileVisit(userId) {
+    const action = "first-own-profile-open";
+    const description = "Primera visita al teu perfil";
+    const entryId = `${action}-${encodeURIComponent(userId)}`;
+    const studentRef = doc(db, "students", userId);
+    const ledgerRef = doc(db, "pointsLedger", entryId);
+
+    try {
+      const awarded = await runTransaction(db, async (transaction) => {
+        const [ledgerSnapshot, studentSnapshot] = await Promise.all([
+          transaction.get(ledgerRef),
+          transaction.get(studentRef)
+        ]);
+        if (ledgerSnapshot.exists()) return false;
+
+        const student = studentSnapshot.data() || {};
+        transaction.set(studentRef, { points: (student.points || 0) + 10 }, { merge: true });
+        transaction.set(ledgerRef, {
+          id: entryId,
+          userId,
+          action,
+          label: description,
+          points: 10,
+          date: new Date().toISOString().split("T")[0]
+        });
+        return true;
+      });
+
+      if (awarded) showToast(`+10 punts: ${description}`);
+    } catch (error) {
+      console.warn("Error sumant els punts de la primera visita al perfil:", error);
+      showToast("No s'han pogut sumar els punts de la visita al perfil.");
     }
   }
 
@@ -1174,8 +1211,16 @@ import {
     ui.route = route;
     if (route === "discover") resetDiscoveryFilters();
     if (route === "project" && payloadId) ui.activeProjectId = payloadId;
-    if (route === "profile") ui.activeProfileId = payloadId || state.currentUserId;
-    if (route === "messages" && payloadId) ui.activeConversationId = payloadId;
+    if (route === "profile") {
+      ui.activeProfileId = payloadId || state.currentUserId;
+      if (state.currentUserId && ui.activeProfileId === state.currentUserId) {
+        void awardFirstOwnProfileVisit(state.currentUserId);
+      }
+    }
+    if (route === "messages" && payloadId) {
+      ui.activeConversationId = payloadId;
+      document.getElementById("chat-shell")?.classList.add("mobile-thread-open");
+    }
 
     document.querySelectorAll(".nav-icon-btn").forEach((btn) => {
       btn.classList.toggle("active", btn.dataset.route === route);
@@ -2100,6 +2145,77 @@ import {
   // 9. MISSATGERIA PRIVADA EN TEMPS REAL
   // =========================================================================
   let pendingMessageReference = null;
+  const pendingReadConversationIds = new Set();
+  const conversationDrafts = new Map();
+  const typingIdleTimers = new Map();
+  const typingLastUpdateAt = new Map();
+
+  function stopTypingIndicator(conversationId, userId) {
+    const timer = typingIdleTimers.get(conversationId);
+    if (timer) clearTimeout(timer);
+    typingIdleTimers.delete(conversationId);
+    typingLastUpdateAt.delete(conversationId);
+
+    updateDoc(doc(db, "conversations", conversationId), {
+      [`typingUsers.${userId}`]: deleteField()
+    }).catch((error) => {
+      console.warn("Error aturant l'indicador d'escriptura:", error);
+    });
+  }
+
+  function updateTypingIndicator(conversationId, userId) {
+    const now = Date.now();
+    const timer = typingIdleTimers.get(conversationId);
+    if (timer) clearTimeout(timer);
+    typingIdleTimers.set(
+      conversationId,
+      setTimeout(() => stopTypingIndicator(conversationId, userId), 2500)
+    );
+
+    if (now - (typingLastUpdateAt.get(conversationId) || 0) < 2000) return;
+    typingLastUpdateAt.set(conversationId, now);
+    updateDoc(doc(db, "conversations", conversationId), {
+      [`typingUsers.${userId}`]: now
+    }).catch((error) => {
+      console.warn("Error actualitzant l'indicador d'escriptura:", error);
+    });
+  }
+
+  async function markConversationMessagesRead(conversation, userId) {
+    if (pendingReadConversationIds.has(conversation.id)) return;
+    if (!hasUnreadMessagesForUser(conversation, userId)) return;
+
+    pendingReadConversationIds.add(conversation.id);
+    try {
+      const conversationRef = doc(db, "conversations", conversation.id);
+      const updatedMessages = await runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(conversationRef);
+        if (!snapshot.exists()) {
+          throw new Error(`No s'ha trobat la conversa ${conversation.id}.`);
+        }
+
+        const latestConversation = snapshot.data();
+        const latestMessages = Array.isArray(latestConversation.messages) ? latestConversation.messages : [];
+        if (!hasUnreadMessagesForUser(latestConversation, userId)) return latestMessages;
+
+        const readMessages = latestMessages.map((message) => {
+          if (message.senderId === userId) return message;
+          const readBy = Array.isArray(message.readBy) ? message.readBy : [];
+          return readBy.includes(userId) ? message : { ...message, readBy: [...readBy, userId] };
+        });
+        transaction.update(conversationRef, { messages: readMessages });
+        return readMessages;
+      });
+      const currentConversation = state.conversations.find((item) => item.id === conversation.id);
+      if (currentConversation) currentConversation.messages = updatedMessages;
+      updateHeaderChrome();
+    } catch (error) {
+      console.warn("Error marcant els missatges com a llegits:", error);
+      showToast("No s'han pogut marcar els missatges com a llegits.");
+    } finally {
+      pendingReadConversationIds.delete(conversation.id);
+    }
+  }
 
   async function startOrOpenConversation(otherStudentId, contextRef = null) {
     const currentUser = getCurrentUser();
@@ -2125,39 +2241,31 @@ import {
     pendingMessageReference = contextRef;
     ui.activeConversationId = conv.id;
     navigateTo("messages", conv.id);
-    const shell = document.getElementById("chat-shell");
-    if (shell) shell.classList.add("mobile-thread-open");
   }
 
-  function renderMessagesView() {
-    const currentUser = getCurrentUser();
-    const listContainer = document.getElementById("conversation-list");
-    const mainPane = document.getElementById("chat-main-pane");
-    const filterQ = (document.getElementById("chat-search-input")?.value || "").toLowerCase();
-
-    const myConvs = state.conversations.filter(
-      (c) => Array.isArray(c.participantIds) && c.participantIds.includes(currentUser.id)
-    );
-
-    listContainer.innerHTML = myConvs
+  function getConversationListMarkup(conversations, currentUser, filterQ) {
+    return conversations
       .map((conv) => {
         const otherId = conv.participantIds.find((id) => id !== currentUser.id);
         const other = getStudentById(otherId);
         if (filterQ && !other.name.toLowerCase().includes(filterQ)) return "";
-        const msgs = Array.isArray(conv.messages) ? conv.messages : [];
-        const lastMsg = msgs[msgs.length - 1];
+        const messages = Array.isArray(conv.messages) ? conv.messages : [];
+        const lastMessage = messages[messages.length - 1];
+        const hasUnreadMessages = hasUnreadMessagesForUser(conv, currentUser.id);
         return `
-          <div class="conv-item ${conv.id === ui.activeConversationId ? "active" : ""}" data-select-conv="${conv.id}">
+          <div class="conv-item ${conv.id === ui.activeConversationId ? "active" : ""}${hasUnreadMessages ? " unread" : ""}" data-select-conv="${conv.id}">
             <img src="${escapeHtml(other.avatar)}" alt="${escapeHtml(other.name)}" />
             <div class="conv-info">
               <strong>${escapeHtml(other.name)}</strong>
-              <p>${lastMsg ? escapeHtml(lastMsg.text) : "Inicia la conversa..."}</p>
+              <p>${lastMessage ? escapeHtml(lastMessage.text) : "Inicia la conversa..."}</p>
             </div>
           </div>
         `;
       })
       .join("");
+  }
 
+  function bindConversationList(listContainer) {
     listContainer.querySelectorAll("[data-select-conv]").forEach((item) => {
       item.addEventListener("click", () => {
         ui.activeConversationId = item.dataset.selectConv;
@@ -2165,17 +2273,131 @@ import {
         renderMessagesView();
       });
     });
+  }
 
-    const activeConv = myConvs.find((c) => c.id === ui.activeConversationId) || myConvs[0];
+  function getConversationMessagesMarkup(messages, currentUser) {
+    return messages
+      .map((message) => {
+        const isOutgoing = message.senderId === currentUser.id;
+        return `
+          <div class="msg-bubble ${isOutgoing ? "outgoing" : "incoming"}">
+            ${
+              message.ref
+                ? `<div class="msg-context-ref" ${message.ref.id ? `data-open-project="${escapeHtml(message.ref.id)}"` : ""} ${
+                    message.ref.commentId ? `data-open-project-comment="${escapeHtml(message.ref.commentId)}"` : ""
+                  }>&#128206; ${escapeHtml(message.ref.label)}</div>`
+                : ""
+            }
+            ${
+              message.ref?.mediaImageId
+                ? `<button type="button" class="msg-context-photo-ref" data-open-project-photo="${escapeHtml(message.ref.mediaImageId)}" data-project-id="${escapeHtml(message.ref.id)}">&#128247; Foto: ${escapeHtml(message.ref.mediaImageLabel || "Fotografia del projecte")}</button>`
+                : ""
+            }
+            <div>${escapeHtml(message.text)}</div>
+            <span class="msg-time">${escapeHtml(message.timestamp)}</span>
+          </div>
+        `;
+      })
+      .join("");
+  }
+
+  function refreshTypingStatusElement(element, conversationId, typingAt) {
+    if (!element) return;
+    element.dataset.typingAt = String(typingAt);
+    const isTyping = typingAt > 0 && Date.now() - typingAt < 5000;
+    element.textContent = isTyping ? "Està escrivint..." : "";
+    if (!isTyping) return;
+
+    setTimeout(() => {
+      const currentStatus = document.getElementById("chat-typing-status");
+      if (
+        ui.activeConversationId === conversationId &&
+        currentStatus?.dataset.typingAt === String(typingAt)
+      ) {
+        currentStatus.textContent = "";
+      }
+    }, Math.max(0, 5000 - (Date.now() - typingAt)));
+  }
+
+  function refreshMessagesView() {
+    const currentUser = getCurrentUser();
+    const listContainer = document.getElementById("conversation-list");
+    const mainPane = document.getElementById("chat-main-pane");
+    const messageInput = document.getElementById("chat-message-input");
+    const activeConv = state.conversations.find(
+      (conversation) => conversation.id === ui.activeConversationId
+    );
+    if (!listContainer || !mainPane || !messageInput || !activeConv) {
+      renderMessagesView();
+      return;
+    }
+
+    const myConvs = state.conversations.filter(
+      (conversation) =>
+        Array.isArray(conversation.participantIds) &&
+        conversation.participantIds.includes(currentUser.id)
+    );
+    if (!myConvs.some((conversation) => conversation.id === activeConv.id)) {
+      renderMessagesView();
+      return;
+    }
+
+    const filterQ = (document.getElementById("chat-search-input")?.value || "").toLowerCase();
+    listContainer.innerHTML = getConversationListMarkup(myConvs, currentUser, filterQ);
+    bindConversationList(listContainer);
+
+    const scrollBox = document.getElementById("chat-messages-scroll");
+    if (scrollBox) {
+      const wasNearBottom = scrollBox.scrollHeight - scrollBox.scrollTop - scrollBox.clientHeight < 48;
+      const messages = Array.isArray(activeConv.messages) ? activeConv.messages : [];
+      scrollBox.innerHTML = getConversationMessagesMarkup(messages, currentUser);
+      if (wasNearBottom) scrollBox.scrollTop = scrollBox.scrollHeight;
+    }
+
+    const otherId = activeConv.participantIds.find((id) => id !== currentUser.id);
+    const typingAt = Number(activeConv.typingUsers?.[otherId] || 0);
+    refreshTypingStatusElement(document.getElementById("chat-typing-status"), activeConv.id, typingAt);
+    if (mainPane.getClientRects().length > 0) {
+      void markConversationMessagesRead(activeConv, currentUser.id);
+    }
+  }
+
+  function renderMessagesView() {
+    const currentUser = getCurrentUser();
+    const listContainer = document.getElementById("conversation-list");
+    const mainPane = document.getElementById("chat-main-pane");
+    const filterQ = (document.getElementById("chat-search-input")?.value || "").toLowerCase();
+    const previousMessageInput = document.getElementById("chat-message-input");
+    const previousConversationId = previousMessageInput?.dataset.conversationId;
+    const wasMessageInputFocused = previousMessageInput && document.activeElement === previousMessageInput;
+    const selectionStart = previousMessageInput?.selectionStart;
+    const selectionEnd = previousMessageInput?.selectionEnd;
+    if (previousMessageInput && previousConversationId) {
+      conversationDrafts.set(previousConversationId, previousMessageInput.value);
+    }
+
+    const myConvs = state.conversations.filter(
+      (c) => Array.isArray(c.participantIds) && c.participantIds.includes(currentUser.id)
+    );
+
+    listContainer.innerHTML = getConversationListMarkup(myConvs, currentUser, filterQ);
+    bindConversationList(listContainer);
+
+    const selectedConversationId = ui.activeConversationId;
+    const activeConv = myConvs.find((c) => c.id === selectedConversationId) || myConvs[0];
     if (!activeConv) {
       mainPane.innerHTML = `<div class="chat-empty-placeholder"><p>Encara no tens converses actives. Pots obrir un xat des de qualsevol projecte o posició oberta.</p></div>`;
       return;
     }
 
     ui.activeConversationId = activeConv.id;
+    if (mainPane.getClientRects().length > 0) {
+      void markConversationMessagesRead(activeConv, currentUser.id);
+    }
     const otherId = activeConv.participantIds.find((id) => id !== currentUser.id);
     const other = getStudentById(otherId);
     const messages = Array.isArray(activeConv.messages) ? activeConv.messages : [];
+    const otherTypingAt = Number(activeConv.typingUsers?.[otherId] || 0);
 
     mainPane.innerHTML = `
       <div class="chat-header">
@@ -2185,40 +2407,19 @@ import {
           <div>
             <strong style="display:block;font-size:14px;">${escapeHtml(other.name)}</strong>
             <span style="font-size: 11.5px;color:var(--text-secondary);">${escapeHtml(other.year)} · ${escapeHtml(other.email)}</span>
+            <span class="chat-typing-status" id="chat-typing-status" data-typing-at="${otherTypingAt}" aria-live="polite"></span>
           </div>
         </div>
         <button type="button" class="chip-action-btn" data-open-profile="${other.id}">Veure portafoli</button>
       </div>
 
       <div class="chat-messages-scroll" id="chat-messages-scroll">
-        ${messages
-          .map((m) => {
-            const isOut = m.senderId === currentUser.id;
-            return `
-              <div class="msg-bubble ${isOut ? "outgoing" : "incoming"}">
-                ${
-                  m.ref
-                    ? `<div class="msg-context-ref" ${m.ref.id ? `data-open-project="${escapeHtml(m.ref.id)}"` : ""} ${
-                        m.ref.commentId ? `data-open-project-comment="${escapeHtml(m.ref.commentId)}"` : ""
-                      }>&#128206; ${escapeHtml(m.ref.label)}</div>`
-                    : ""
-                }
-                ${
-                  m.ref?.mediaImageId
-                    ? `<button type="button" class="msg-context-photo-ref" data-open-project-photo="${escapeHtml(m.ref.mediaImageId)}" data-project-id="${escapeHtml(m.ref.id)}">&#128247; Foto: ${escapeHtml(m.ref.mediaImageLabel || "Fotografia del projecte")}</button>`
-                    : ""
-                }
-                <div>${escapeHtml(m.text)}</div>
-                <span class="msg-time">${escapeHtml(m.timestamp)}</span>
-              </div>
-            `;
-          })
-          .join("")}
+        ${getConversationMessagesMarkup(messages, currentUser)}
       </div>
 
       ${
         pendingMessageReference
-          ? `<div style="padding:8px 16px;background: var(--bg-subtle); font-size:12px;display: flex; justify-content:space-between; align-items:center;">
+          ? `<div id="pending-message-reference" style="padding:8px 16px;background: var(--bg-subtle); font-size:12px;display: flex; justify-content:space-between; align-items:center;">
               <span>Referència adjunta: <strong>${escapeHtml(pendingMessageReference.label)}</strong>${
               pendingMessageReference.mediaImageLabel ? ` · Foto: ${escapeHtml(pendingMessageReference.mediaImageLabel)}` : ""
             }</span>
@@ -2228,10 +2429,28 @@ import {
       }
 
       <form class="chat-input-bar" id="send-chat-form">
-        <input type="text" id="chat-message-input" placeholder="Escriu un missatge a ${escapeHtml(other.name)}..." required autocomplete="off" />
+        <input type="text" id="chat-message-input" data-conversation-id="${escapeHtml(activeConv.id)}" placeholder="Escriu un missatge a ${escapeHtml(other.name)}..." required autocomplete="off" />
         <button type="submit" class="btn-primary">Enviar</button>
       </form>
     `;
+
+    const messageInput = document.getElementById("chat-message-input");
+    messageInput.value = conversationDrafts.get(activeConv.id) || "";
+    if (wasMessageInputFocused && previousConversationId === activeConv.id) {
+      messageInput.focus();
+      if (selectionStart !== undefined && selectionEnd !== undefined) {
+        messageInput.setSelectionRange(selectionStart, selectionEnd);
+      }
+    }
+    messageInput.addEventListener("input", () => {
+      conversationDrafts.set(activeConv.id, messageInput.value);
+      if (messageInput.value.trim()) {
+        updateTypingIndicator(activeConv.id, currentUser.id);
+      } else {
+        stopTypingIndicator(activeConv.id, currentUser.id);
+      }
+    });
+    refreshTypingStatusElement(document.getElementById("chat-typing-status"), activeConv.id, otherTypingAt);
 
     const backBtn = document.getElementById("mobile-chat-back-btn");
     if (backBtn) {
@@ -2259,20 +2478,41 @@ import {
 
       const now = new Date();
       const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-      const updatedMessages = [
-        ...messages,
-        {
-          id: "m-" + Date.now(),
-          senderId: currentUser.id,
-          text,
-          ref: pendingMessageReference,
-          timestamp: timeStr
-        }
-      ];
+      const newMessage = {
+        id: "m-" + Date.now(),
+        senderId: currentUser.id,
+        readBy: [currentUser.id],
+        text,
+        ref: pendingMessageReference,
+        timestamp: timeStr
+      };
+      const conversationRef = doc(db, "conversations", activeConv.id);
+      try {
+        await runTransaction(db, async (transaction) => {
+          const snapshot = await transaction.get(conversationRef);
+          if (!snapshot.exists()) {
+            throw new Error(`No s'ha trobat la conversa ${activeConv.id}.`);
+          }
+          const currentMessages = Array.isArray(snapshot.data().messages) ? snapshot.data().messages : [];
+          transaction.update(conversationRef, { messages: [...currentMessages, newMessage] });
+        });
+      } catch (error) {
+        console.warn("Error enviant el missatge privat:", error);
+        showToast("No s'ha pogut enviar el missatge. El text es conserva.");
+        return;
+      }
+
       pendingMessageReference = null;
+      conversationDrafts.set(activeConv.id, "");
+      stopTypingIndicator(activeConv.id, currentUser.id);
       input.value = "";
-      await updateDoc(doc(db, "conversations", activeConv.id), { messages: updatedMessages });
-      await pushNotification(other.id, `Nou missatge privat de ${currentUser.name}`, "messages", activeConv.id);
+      document.getElementById("pending-message-reference")?.remove();
+      try {
+        await pushNotification(other.id, `Nou missatge privat de ${currentUser.name}`, "messages", activeConv.id);
+      } catch (error) {
+        console.warn("Error creant la notificació del missatge privat:", error);
+        showToast("El missatge s'ha enviat, però no s'ha pogut crear la notificació.");
+      }
     });
   }
 
@@ -2517,10 +2757,27 @@ import {
     });
   }
 
+  function hasUnreadMessagesForUser(conversation, userId) {
+    if (!Array.isArray(conversation.participantIds) || !conversation.participantIds.includes(userId)) {
+      return false;
+    }
+    const messages = Array.isArray(conversation.messages) ? conversation.messages : [];
+    return messages.some(
+      (message) =>
+        message.senderId !== userId &&
+        (!Array.isArray(message.readBy) || !message.readBy.includes(userId))
+    );
+  }
+
   function updateHeaderChrome() {
     const currentUser = getCurrentUser();
     const avatarEl = document.getElementById("nav-user-avatar");
     if (avatarEl) avatarEl.src = currentUser.avatar;
+
+    const hasUnreadMessages = state.conversations.some((conversation) =>
+      hasUnreadMessagesForUser(conversation, currentUser.id)
+    );
+    document.getElementById("nav-msg-badge")?.classList.toggle("hidden", !hasUnreadMessages);
 
     const userInfo = document.getElementById("popover-user-info");
     if (userInfo) {
