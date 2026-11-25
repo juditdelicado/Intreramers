@@ -1,0 +1,16 @@
+{
+  "name": "intreramers-functions",
+  "description": "Backend callable functions for Intreramers",
+  "private": true,
+  "main": "index.js",
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "lint": "node --check index.js"
+  },
+  "dependencies": {
+    "@google-cloud/translate": "^9.4.2",
+    "firebase-functions": "^7.4.0"
+  }
+}

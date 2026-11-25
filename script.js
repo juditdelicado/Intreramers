@@ -1,4 +1,5 @@
-import { auth, db, storage } from "./firebase.js";
+import { auth, db, functions, storage } from "./firebase.js";
+import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -16,7 +17,10 @@ import {
   onSnapshot,
   runTransaction,
   deleteField,
-  writeBatch
+  writeBatch,
+  arrayUnion,
+  arrayRemove,
+  increment
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {
   ref,
@@ -415,8 +419,7 @@ import {
         status: "In progress",
         mediaUrl: "https://vimeo.com/76979871",
         mediaImages: [],
-        feedbackType: "Ritme del primer muntatge i transicions sonores",
-        questions: "L'inici manté l'interès abans de la primera entrevista?"
+        feedbackType: "Ritme del primer muntatge i transicions sonores"
       },
       {
         id: "proj-2",
@@ -438,8 +441,7 @@ import {
         status: "In progress",
         mediaUrl: "https://drive.google.com",
         mediaImages: [],
-        feedbackType: "Llegibilitat i jerarquia visual",
-        questions: "Funciona millor la versió en blanc i negre o amb un color d'accent?"
+        feedbackType: "Llegibilitat i jerarquia visual"
       },
       {
         id: "proj-3",
@@ -461,8 +463,7 @@ import {
         status: "In progress",
         mediaUrl: "",
         mediaImages: [],
-        feedbackType: "Selecció i seqüència de les 8 imatges finals",
-        questions: "Quina imatge hauria d'obrir la sèrie?"
+        feedbackType: "Selecció i seqüència de les 8 imatges finals"
       },
       {
         id: "proj-4",
@@ -484,8 +485,7 @@ import {
         status: "In progress",
         mediaUrl: "https://figma.com",
         mediaImages: [],
-        feedbackType: "Usabilitat dels controls en pantalla tàctil",
-        questions: "El gest per modular el so és intuïtiu?"
+        feedbackType: "Usabilitat dels controls en pantalla tàctil"
       },
       {
         id: "proj-5",
@@ -507,8 +507,7 @@ import {
         status: "In progress",
         mediaUrl: "https://youtube.com",
         mediaImages: [],
-        feedbackType: "Il·luminació i escala de l'espai",
-        questions: "Es percep bé la profunditat de la sala principal?"
+        feedbackType: "Il·luminació i escala de l'espai"
       },
       {
         id: "proj-6",
@@ -530,8 +529,7 @@ import {
         status: "In progress",
         mediaUrl: "",
         mediaImages: [],
-        feedbackType: "Comoditat de la navegació i claredat de les interaccions",
-        questions: "S'entén sense instruccions què es pot tocar i què no?"
+        feedbackType: "Comoditat de la navegació i claredat de les interaccions"
       }
     ],
     comments: [
@@ -572,11 +570,396 @@ import {
     pointsLedger: []
   };
 
+  const translateText = httpsCallable(functions, "translateUserContent");
+  const userContentState = new WeakMap();
+  const textNodeState = new WeakMap();
+  const attributeState = new WeakMap();
+  const memoryTranslationCache = new Map();
+  const failedTranslationKeys = new Set();
+  const staticTranslationCache = new Map();
+  const STATIC_TRANSLATION_CACHE_KEY = "eram-static-translations-v1";
+  const MAX_TRANSLATION_BATCH_CODEPOINTS = 23000;
+  const MAX_TRANSLATION_BATCH_ITEMS = 50;
+  let translationObserver;
+  let translationTimer;
+  let translationInProgress = false;
+  let translationRequested = false;
+  let translationErrorNotified = false;
+
+  try {
+    const savedTranslations = JSON.parse(localStorage.getItem(STATIC_TRANSLATION_CACHE_KEY) || "[]");
+    if (Array.isArray(savedTranslations)) {
+      savedTranslations.slice(-1500).forEach(([key, value]) => {
+        if (typeof key === "string" && value && typeof value.text === "string") {
+          staticTranslationCache.set(key, value);
+        }
+      });
+    }
+  } catch (error) {
+    console.warn("No s'ha pogut recuperar la memòria cau de traduccions:", error);
+  }
+
+  function translationKey(language, text) {
+    return `${language}\u0000${text}`;
+  }
+
+  function persistStaticTranslationCache() {
+    try {
+      const entries = [...staticTranslationCache.entries()].slice(-1500);
+      localStorage.setItem(STATIC_TRANSLATION_CACHE_KEY, JSON.stringify(entries));
+    } catch (error) {
+      console.warn("No s'ha pogut desar la memòria cau de traduccions:", error);
+    }
+  }
+
+  function userContentMarkup(value, extraClass = "") {
+    const text = value == null ? "" : String(value);
+    return `<span class="user-content-translation-wrap ${extraClass}">
+      <span class="user-generated-content" data-user-content>${escapeHtml(text)}</span>
+      <button type="button" class="user-content-translation-toggle" data-user-content-toggle data-i18n-ignore hidden></button>
+    </span>`;
+  }
+
+  function getUserContentToggle(element) {
+    return element.closest(".user-content-translation-wrap")?.querySelector("[data-user-content-toggle]");
+  }
+
+  function isTranslatableTextNode(node) {
+    const parent = node.parentElement;
+    if (!parent || !node.nodeValue?.trim() || !/\p{L}/u.test(node.nodeValue)) return false;
+    if (parent.closest("[data-user-content], [data-i18n-ignore], script, style, noscript, textarea, option")) {
+      return false;
+    }
+    return true;
+  }
+
+  function getNodeTranslationRecord(node) {
+    const currentText = node.nodeValue || "";
+    let record = textNodeState.get(node);
+    if (!record) {
+      record = { original: currentText, rendered: currentText };
+      textNodeState.set(node, record);
+    } else if (currentText !== record.rendered && currentText !== record.original) {
+      record.original = currentText;
+      record.rendered = currentText;
+    }
+    return record;
+  }
+
+  function getAttributeTranslationRecord(element, attribute) {
+    let records = attributeState.get(element);
+    if (!records) {
+      records = new Map();
+      attributeState.set(element, records);
+    }
+
+    const currentValue = element.getAttribute(attribute) || "";
+    let record = records.get(attribute);
+    if (!record) {
+      record = { original: currentValue, rendered: currentValue };
+      records.set(attribute, record);
+    } else if (currentValue !== record.rendered && currentValue !== record.original) {
+      record.original = currentValue;
+      record.rendered = currentValue;
+    }
+    return record;
+  }
+
+  function updateUserContentDisplay(element, record, targetLanguage, result) {
+    const toggle = getUserContentToggle(element);
+    const isTranslated = result.detectedLanguage !== targetLanguage && result.text !== record.original;
+    const showOriginal = record.showingOriginal && isTranslated;
+    const visibleText = showOriginal ? record.original : result.text;
+
+    if (element.textContent !== visibleText) {
+      record.rendered = visibleText;
+      element.textContent = visibleText;
+    } else {
+      record.rendered = visibleText;
+    }
+    record.showingOriginal = showOriginal;
+    record.displayLanguage = targetLanguage;
+    record.result = result;
+    if (toggle) {
+      toggle.removeAttribute("data-translation-retry");
+      toggle.disabled = false;
+      toggle.hidden = !isTranslated;
+      toggle.textContent = showOriginal
+        ? targetLanguage === "en" ? "See translation" : "Veure la traducció"
+        : targetLanguage === "en" ? "See original" : "Veure l'original";
+      toggle.setAttribute("aria-label", toggle.textContent);
+    }
+  }
+
+  function getTranslationFailureText() {
+    return ui.language === "en"
+      ? "Translation is unavailable. Please try again."
+      : "La traducció no està disponible. Torna-ho a provar.";
+  }
+
+  function applyTranslationFailure(job, tooLarge = false) {
+    if (job.kind !== "user") return;
+    const toggle = getUserContentToggle(job.element);
+    if (toggle) {
+      toggle.hidden = false;
+      toggle.disabled = tooLarge;
+      toggle.textContent = tooLarge
+        ? ui.language === "en" ? "Text too long to translate" : "Text massa llarg per traduir"
+        : ui.language === "en" ? "Retry translation" : "Reintentar traducció";
+      if (tooLarge) toggle.removeAttribute("data-translation-retry");
+      else toggle.dataset.translationRetry = "";
+      toggle.setAttribute("aria-label", toggle.textContent);
+    }
+  }
+
+  function applyTranslationResult(job, result, targetLanguage) {
+    if (job.kind === "user") {
+      const record = userContentState.get(job.element);
+      if (!record) return;
+      record.translations.set(targetLanguage, result);
+      updateUserContentDisplay(job.element, record, targetLanguage, result);
+      return;
+    }
+
+    const record = job.record;
+    if (job.kind === "text") {
+      record.rendered = result.text;
+      if (job.node.nodeValue !== result.text) job.node.nodeValue = result.text;
+    } else {
+      record.rendered = result.text;
+      if (job.element.getAttribute(job.attribute) !== result.text) {
+        job.element.setAttribute(job.attribute, result.text);
+      }
+    }
+    memoryTranslationCache.set(job.key, result);
+    staticTranslationCache.set(job.key, result);
+  }
+
+  async function processPageTranslations() {
+    const targetLanguage = ui.language;
+    document.documentElement.lang = targetLanguage;
+
+    const jobs = [];
+    const walker = document.createTreeWalker(document.documentElement, NodeFilter.SHOW_TEXT);
+    let textNode;
+    while ((textNode = walker.nextNode())) {
+      if (!isTranslatableTextNode(textNode)) continue;
+      const record = getNodeTranslationRecord(textNode);
+      if (!record.original.trim()) continue;
+      const key = translationKey(targetLanguage, record.original);
+      const cached = memoryTranslationCache.get(key) || staticTranslationCache.get(key);
+      if (cached) {
+        applyTranslationResult({ kind: "text", node: textNode, record, key }, cached, targetLanguage);
+      } else {
+        jobs.push({ kind: "text", node: textNode, record, key, text: record.original });
+      }
+    }
+
+    document.querySelectorAll("[placeholder], [aria-label], [title]").forEach((element) => {
+      if (element.closest("[data-user-content], [data-i18n-ignore]")) return;
+      ["placeholder", "aria-label", "title"].forEach((attribute) => {
+        if (!element.hasAttribute(attribute)) return;
+        const record = getAttributeTranslationRecord(element, attribute);
+        if (!record.original.trim() || !/\p{L}/u.test(record.original)) return;
+        const key = translationKey(targetLanguage, record.original);
+        const cached = memoryTranslationCache.get(key) || staticTranslationCache.get(key);
+        if (cached) {
+          applyTranslationResult({ kind: "attribute", element, attribute, record, key }, cached, targetLanguage);
+        } else {
+          jobs.push({ kind: "attribute", element, attribute, record, key, text: record.original });
+        }
+      });
+    });
+
+    document.querySelectorAll("[data-user-content]").forEach((element) => {
+      const currentText = element.textContent || "";
+      let record = userContentState.get(element);
+      if (!record) {
+        record = { original: currentText, rendered: currentText, translations: new Map(), showingOriginal: false };
+        userContentState.set(element, record);
+      } else if (currentText !== record.rendered && currentText !== record.original) {
+        record.original = currentText;
+        record.rendered = currentText;
+        record.translations.clear();
+        record.showingOriginal = false;
+      }
+      if (record.displayLanguage && record.displayLanguage !== targetLanguage) {
+        record.showingOriginal = false;
+      }
+      if (!record.original.trim()) return;
+
+      const key = translationKey(targetLanguage, record.original);
+      const cached = record.translations.get(targetLanguage) || memoryTranslationCache.get(key);
+      if (cached) {
+        applyTranslationResult({ kind: "user", element, key }, cached, targetLanguage);
+      } else {
+        jobs.push({ kind: "user", element, key, text: record.original });
+      }
+    });
+
+    if (!jobs.length || !state.currentUserId || !auth.currentUser) return;
+
+    const uniqueJobs = new Map();
+    jobs.forEach((job) => {
+      if (!failedTranslationKeys.has(job.key)) {
+        if (!uniqueJobs.has(job.key)) uniqueJobs.set(job.key, []);
+        uniqueJobs.get(job.key).push(job);
+      } else {
+        applyTranslationFailure(job);
+      }
+    });
+    const pending = [...uniqueJobs.entries()];
+    const batches = [];
+    let batch = [];
+    let batchCodepoints = 0;
+    for (const [key, relatedJobs] of pending) {
+      const text = relatedJobs[0].text;
+      const codepoints = Array.from(text).length;
+      if (codepoints > MAX_TRANSLATION_BATCH_CODEPOINTS) {
+        failedTranslationKeys.add(key);
+        relatedJobs.forEach((job) => applyTranslationFailure(job, true));
+        console.error("S'ha omès una traducció perquè el text supera el límit permès.");
+        continue;
+      }
+      if (
+        batch.length >= MAX_TRANSLATION_BATCH_ITEMS ||
+        batchCodepoints + codepoints > MAX_TRANSLATION_BATCH_CODEPOINTS
+      ) {
+        batches.push(batch);
+        batch = [];
+        batchCodepoints = 0;
+      }
+      batch.push([key, relatedJobs]);
+      batchCodepoints += codepoints;
+    }
+    if (batch.length) batches.push(batch);
+
+    let hadError = false;
+    for (const requestBatch of batches) {
+      const requestItems = requestBatch.map(([, relatedJobs]) => relatedJobs[0].text);
+      try {
+        const response = await translateText({
+          contents: requestItems,
+          targetLanguage
+        });
+        const translations = response.data?.translations;
+        if (!Array.isArray(translations) || translations.length !== requestBatch.length) {
+          throw new Error("La funció de traducció ha retornat una resposta invàlida.");
+        }
+        if (targetLanguage !== ui.language) {
+          translationRequested = true;
+          continue;
+        }
+        translations.forEach((translation, index) => {
+          const [key, relatedJobs] = requestBatch[index];
+          const result = {
+            text: typeof translation.text === "string" ? translation.text : "",
+            detectedLanguage: typeof translation.detectedLanguage === "string"
+              ? translation.detectedLanguage.split("-")[0].toLowerCase()
+              : ""
+          };
+          if (!result.text) throw new Error("La funció de traducció ha retornat un text buit.");
+          memoryTranslationCache.set(key, result);
+          relatedJobs.forEach((job) => applyTranslationResult(job, result, targetLanguage));
+        });
+      } catch (error) {
+        hadError = true;
+        console.error("No s'ha pogut traduir el contingut:", error);
+        requestBatch.forEach(([key, relatedJobs]) => {
+          failedTranslationKeys.add(key);
+          relatedJobs.forEach(applyTranslationFailure);
+        });
+      }
+    }
+    if (staticTranslationCache.size) persistStaticTranslationCache();
+    if (hadError && !translationErrorNotified) {
+      translationErrorNotified = true;
+      showToast(getTranslationFailureText());
+    }
+  }
+
+  async function translatePageContent() {
+    translationRequested = true;
+    if (translationInProgress) return;
+    translationInProgress = true;
+    try {
+      while (translationRequested) {
+        translationRequested = false;
+        await processPageTranslations();
+      }
+    } finally {
+      translationInProgress = false;
+    }
+  }
+
+  function initializeTranslation() {
+    document.addEventListener("click", async (event) => {
+      const toggle = event.target.closest("[data-user-content-toggle]");
+      if (!toggle) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const element = toggle.closest(".user-content-translation-wrap")?.querySelector("[data-user-content]");
+      if (!element) return;
+
+      if (toggle.hasAttribute("data-translation-retry")) {
+        const record = userContentState.get(element);
+        if (!record) return;
+        const key = translationKey(ui.language, record.original);
+        failedTranslationKeys.delete(key);
+        toggle.removeAttribute("data-translation-retry");
+        toggle.hidden = true;
+        await translatePageContent();
+        return;
+      }
+
+      const record = userContentState.get(element);
+      if (!record?.result) return;
+      record.showingOriginal = !record.showingOriginal;
+      updateUserContentDisplay(element, record, ui.language, record.result);
+    }, true);
+
+    document.getElementById("language-select")?.addEventListener("change", async (event) => {
+      const selectedLanguage = event.target.value === "en" ? "en" : "ca";
+      const previousLanguage = ui.language;
+      const currentUserId = state.currentUserId;
+      try {
+        if (currentUserId) {
+          await setDoc(doc(db, "students", currentUserId), { language: selectedLanguage }, { merge: true });
+        }
+        localStorage.setItem("eram-language", selectedLanguage);
+        ui.language = selectedLanguage;
+        failedTranslationKeys.clear();
+        translationErrorNotified = false;
+        await translatePageContent();
+      } catch (error) {
+        console.error("No s'ha pogut desar l'idioma seleccionat:", error);
+        event.target.value = previousLanguage;
+        showToast(selectedLanguage === "en"
+          ? "Could not save your language preference."
+          : "No s'ha pogut desar la preferència d'idioma.");
+      }
+    });
+
+    translationObserver = new MutationObserver(() => {
+      clearTimeout(translationTimer);
+      translationTimer = setTimeout(() => void translatePageContent(), 120);
+    });
+    translationObserver.observe(document.documentElement, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ["placeholder", "aria-label", "title"]
+    });
+    void translatePageContent();
+  }
+
   // Estat reactiu en memòria sincronitzat amb Firestore
   const state = {
     currentUserId: null,
     students: [],
     projects: [],
+    projectsLoaded: false,
     comments: [],
     positions: [],
     conversations: [],
@@ -684,6 +1067,7 @@ import {
     });
     onSnapshot(collection(db, "projects"), (snap) => {
       state.projects = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      state.projectsLoaded = true;
       populateDynamicFilterOptions();
       refreshCurrentRoute();
     });
@@ -716,7 +1100,10 @@ import {
 
   function refreshCurrentRoute() {
     updateHeaderChrome();
-    if (!document.body.classList.contains("authenticated")) return;
+    if (
+      !document.body.classList.contains("authenticated") &&
+      !document.body.classList.contains("auth-loading")
+    ) return;
     if (ui.route === "discover") renderDiscoverView();
     if (ui.route === "project") renderProjectDetailView();
     if (ui.route === "positions") renderPositionsView();
@@ -759,33 +1146,54 @@ import {
   };
 
   let projectWizardStep = 1;
+  const projectWizardStepHistory = [];
+
+  function getProjectWizardSteps() {
+    const steps = [
+      { id: 1, title: "Portada i dades principals" },
+      { id: 2, title: "Descripció i briefing" },
+      { id: 3, title: "Context acadèmic i equip" }
+    ];
+    const seekingCollaborator =
+      document.getElementById("proj-team-type").value === "group" &&
+      document.getElementById("proj-seeking-collaborator").checked;
+
+    if (seekingCollaborator) steps.push({ id: 4, title: "Detalls de col·laboració" });
+    steps.push({ id: 5, title: "Material multimèdia" });
+    return steps.map((step, index) => ({
+      ...step,
+      label: `Pas ${index + 1} de ${steps.length} · ${step.title}`
+    }));
+  }
 
   function setProjectWizardStep(step) {
-    const labels = [
-      "Pas 1 de 5 · Portada i dades principals",
-      "Pas 2 de 5 · Descripció i briefing",
-      "Pas 3 de 5 · Context acadèmic i equip",
-      "Pas 4 de 5 · Material multimèdia",
-      "Pas 5 de 5 · Feedback"
-    ];
-    const lastStep = labels.length;
-    projectWizardStep = Math.max(1, Math.min(lastStep, step));
+    const steps = getProjectWizardSteps();
+    const lastStep = steps.length;
+    const nextStep = Math.max(1, Math.min(lastStep, step));
+    if (nextStep > projectWizardStep) projectWizardStepHistory.push(projectWizardStep);
+    if (nextStep === 1) projectWizardStepHistory.length = 0;
+    projectWizardStep = nextStep;
+    const currentStep = steps[projectWizardStep - 1];
 
     document.querySelectorAll("[data-project-step]").forEach((section) => {
-      section.hidden = Number(section.dataset.projectStep) !== projectWizardStep;
+      section.hidden = Number(section.dataset.projectStep) !== currentStep.id;
     });
 
+    const progressTrack = document.querySelector("#publish-project-form .project-wizard-progress-track");
+    if (progressTrack) progressTrack.style.gridTemplateColumns = `repeat(${lastStep}, minmax(0, 1fr))`;
     document.querySelectorAll("[data-wizard-progress]").forEach((indicator) => {
-      const isActive = Number(indicator.dataset.wizardProgress) <= projectWizardStep;
+      const progressStep = Number(indicator.dataset.wizardProgress);
+      indicator.hidden = progressStep > lastStep;
+      const isActive = progressStep <= projectWizardStep;
       indicator.classList.toggle("is-active", isActive);
-      if (Number(indicator.dataset.wizardProgress) === projectWizardStep) {
+      if (progressStep === projectWizardStep) {
         indicator.setAttribute("aria-current", "step");
       } else {
         indicator.removeAttribute("aria-current");
       }
     });
 
-    document.getElementById("proj-wizard-step-label").textContent = labels[projectWizardStep - 1];
+    document.getElementById("proj-wizard-step-label").textContent = currentStep.label;
     document.getElementById("proj-wizard-back").classList.toggle("hidden", projectWizardStep === 1);
     document.getElementById("proj-wizard-next").classList.toggle("hidden", projectWizardStep === lastStep);
     document.getElementById("proj-wizard-submit").classList.toggle("hidden", projectWizardStep !== lastStep);
@@ -795,11 +1203,17 @@ import {
     if (modalCard) modalCard.scrollTop = 0;
   }
 
+  function goBackProjectWizardStep() {
+    const previousStep = projectWizardStepHistory.pop() || Math.max(1, projectWizardStep - 1);
+    setProjectWizardStep(previousStep);
+  }
+
   function advanceProjectWizard() {
     const error = document.getElementById("proj-form-error");
     error.classList.add("hidden");
+    const currentStepId = getProjectWizardSteps()[projectWizardStep - 1].id;
 
-    if (projectWizardStep === 1) {
+    if (currentStepId === 1) {
       if (projectCrop.source && !projectCrop.image) {
         error.textContent = projectCrop.loading
           ? "Espera que la imatge s'acabi de carregar."
@@ -852,17 +1266,35 @@ import {
       }
     }
 
-    if (projectWizardStep === 2) {
+    if (currentStepId === 2) {
       if (!document.getElementById("proj-description").value.trim()) {
         error.textContent = "Escriu la descripció del projecte per continuar.";
         error.classList.remove("hidden");
         document.getElementById("proj-description").focus();
         return;
       }
-      if (!document.getElementById("proj-briefing").value.trim()) {
-        error.textContent = "Escriu els objectius i requisits del briefing per continuar.";
+    }
+
+    if (currentStepId === 4) {
+      const role = document.getElementById("proj-collab-role");
+      const startDate = document.getElementById("proj-collab-start");
+      const endDate = document.getElementById("proj-collab-end");
+      if (!role.value) {
+        error.textContent = "Selecciona el perfil que busques.";
         error.classList.remove("hidden");
-        document.getElementById("proj-briefing").focus();
+        role.focus();
+        return;
+      }
+      if (!startDate.value || !endDate.value) {
+        error.textContent = "Indica les dates d'inici i finalització de la col·laboració.";
+        error.classList.remove("hidden");
+        (startDate.value ? endDate : startDate).focus();
+        return;
+      }
+      if (endDate.value < startDate.value) {
+        error.textContent = "La data de finalització no pot ser anterior a la data d'inici.";
+        error.classList.remove("hidden");
+        endDate.focus();
         return;
       }
     }
@@ -873,18 +1305,18 @@ import {
   function syncProjectTeamFields() {
     const isGroup = document.getElementById("proj-team-type").value === "group";
     const participantsWrap = document.getElementById("proj-participants-wrap");
+    const participantRows = document.getElementById("proj-participant-rows");
     const collaboratorOptionWrap = document.getElementById("proj-collaborator-option-wrap");
     const collaboratorCheckbox = document.getElementById("proj-seeking-collaborator");
-    const collaboratorRole = document.getElementById("proj-collab-role");
-
+    const participantsCanManageCheckbox = document.getElementById("proj-participants-can-manage");
     participantsWrap.hidden = !isGroup;
     collaboratorOptionWrap.hidden = !isGroup;
     if (!isGroup) {
-      participantsWrap.querySelector("#proj-participants").value = "";
+      participantRows.innerHTML = "";
       collaboratorCheckbox.checked = false;
-      collaboratorRole.selectedIndex = 0;
+      participantsCanManageCheckbox.checked = false;
+      populateParticipantSearch();
     }
-    document.getElementById("proj-collab-role-wrap").hidden = !isGroup || !collaboratorCheckbox.checked;
   }
 
   function renderProjectMediaPreview() {
@@ -1032,31 +1464,146 @@ import {
     image.src = source;
   }
 
+  const savedRoute = sessionStorage.getItem("eram-active-route");
+  const savedRouteId = sessionStorage.getItem("eram-active-route-id");
+  const savedViewStateText = sessionStorage.getItem("eram-active-view-state");
+  let savedViewState = {};
+  if (savedViewStateText) {
+    try {
+      const parsedState = JSON.parse(savedViewStateText);
+      if (parsedState && typeof parsedState === "object" && !Array.isArray(parsedState)) {
+        savedViewState = parsedState;
+      } else {
+        console.warn("S'ha ignorat l'estat de vista desat perquè no té un format vàlid.");
+      }
+    } catch (error) {
+      console.warn("No s'ha pogut recuperar l'estat de vista desat:", error);
+    }
+  }
+  const savedFilters =
+    savedViewState.filters && typeof savedViewState.filters === "object" ? savedViewState.filters : {};
+  const savedPositionFilters =
+    savedViewState.posFilters && typeof savedViewState.posFilters === "object"
+      ? savedViewState.posFilters
+      : {};
+  const validRoutes = new Set(["discover", "project", "positions", "messages", "profile", "leaderboard"]);
+  const initialRoute =
+    validRoutes.has(savedRoute) && (savedRoute !== "project" || savedRouteId) ? savedRoute : "discover";
+
   const ui = {
-    route: "discover",
-    selectedCategory: "General",
-    searchQuery: "",
-    sortBy: "recent",
-    visibleCount: 15,
+    route: initialRoute,
+    language: localStorage.getItem("eram-language") === "en" ? "en" : "ca",
+    selectedCategory: typeof savedViewState.selectedCategory === "string" ? savedViewState.selectedCategory : "General",
+    searchQuery: typeof savedViewState.searchQuery === "string" ? savedViewState.searchQuery : "",
+    sortBy: typeof savedViewState.sortBy === "string" ? savedViewState.sortBy : "recent",
+    visibleCount:
+      Number.isFinite(savedViewState.visibleCount) && savedViewState.visibleCount >= 15
+        ? savedViewState.visibleCount
+        : 15,
+    advancedFiltersOpen: savedViewState.advancedFiltersOpen === true,
     filters: {
-      subject: "",
-      professor: "",
-      year: "",
-      stage: "",
-      teamType: "",
-      status: "active",
-      urgentOnly: false
+      subject: typeof savedFilters.subject === "string" ? savedFilters.subject : "",
+      professor: typeof savedFilters.professor === "string" ? savedFilters.professor : "",
+      year: typeof savedFilters.year === "string" ? savedFilters.year : "",
+      stage: typeof savedFilters.stage === "string" ? savedFilters.stage : "",
+      teamType: typeof savedFilters.teamType === "string" ? savedFilters.teamType : "",
+      status: typeof savedFilters.status === "string" ? savedFilters.status : "active",
+      urgentOnly: savedFilters.urgentOnly === true
     },
-    activeProjectId: null,
-    activeProfileId: null,
-    activeConversationId: null,
+    activeProjectId: initialRoute === "project" ? savedRouteId : null,
+    activeProfileId: initialRoute === "profile" ? savedRouteId : null,
+    activeConversationId: initialRoute === "messages" ? savedRouteId : null,
     posFilters: {
-      role: "",
-      compensation: "",
-      projectType: "",
-      location: ""
+      role: typeof savedPositionFilters.role === "string" ? savedPositionFilters.role : "",
+      compensation: typeof savedPositionFilters.compensation === "string" ? savedPositionFilters.compensation : "",
+      projectType: typeof savedPositionFilters.projectType === "string" ? savedPositionFilters.projectType : "",
+      location: typeof savedPositionFilters.location === "string" ? savedPositionFilters.location : ""
     }
   };
+  const savedScrollX = Number.isFinite(savedViewState.scrollX) ? savedViewState.scrollX : 0;
+  const savedScrollY = Number.isFinite(savedViewState.scrollY) ? savedViewState.scrollY : 0;
+  const savedMessageScrollTop = Number.isFinite(savedViewState.messageScrollTop)
+    ? savedViewState.messageScrollTop
+    : 0;
+  let restoreSavedViewOnEntry = Boolean(savedViewStateText) || initialRoute !== "discover";
+  let restoreMessageScroll = initialRoute === "messages" && Boolean(savedViewStateText);
+  const backHistoryText = sessionStorage.getItem("eram-app-back-history");
+  let navigationHistory = [];
+  const modalBackHistory = [];
+  if (backHistoryText) {
+    try {
+      const parsedHistory = JSON.parse(backHistoryText);
+      if (Array.isArray(parsedHistory)) {
+        navigationHistory = parsedHistory
+          .filter((entry) => entry && validRoutes.has(entry.route))
+          .slice(-30);
+      } else {
+        console.warn("S'ha ignorat l'historial de navegació desat perquè no té un format vàlid.");
+      }
+    } catch (error) {
+      console.warn("No s'ha pogut recuperar l'historial de navegació desat:", error);
+    }
+  }
+
+  function getCurrentRouteId() {
+    if (ui.route === "project") return ui.activeProjectId;
+    if (ui.route === "profile") return ui.activeProfileId;
+    if (ui.route === "messages") return ui.activeConversationId;
+    return "";
+  }
+
+  function captureCurrentScreen() {
+    return {
+      route: ui.route,
+      routeId: getCurrentRouteId(),
+      selectedCategory: ui.selectedCategory,
+      searchQuery: ui.searchQuery,
+      sortBy: ui.sortBy,
+      visibleCount: ui.visibleCount,
+      advancedFiltersOpen: ui.advancedFiltersOpen,
+      filters: { ...ui.filters },
+      posFilters: { ...ui.posFilters },
+      scrollX: window.scrollX,
+      scrollY: window.scrollY
+    };
+  }
+
+  function persistNavigationHistory() {
+    sessionStorage.setItem("eram-app-back-history", JSON.stringify(navigationHistory.slice(-30)));
+  }
+
+  function updateBackButton() {
+    const activeModal = document.querySelector(".modal-backdrop:not(.hidden)");
+    const pageBackButton = document.getElementById("app-back-btn");
+    if (pageBackButton) {
+      pageBackButton.classList.toggle("hidden", Boolean(activeModal));
+      pageBackButton.disabled = !activeModal && navigationHistory.length === 0;
+    }
+  }
+
+  function saveActiveViewState() {
+    const routeId = getCurrentRouteId();
+    sessionStorage.setItem("eram-active-route", ui.route);
+    sessionStorage.setItem("eram-active-route-id", routeId || "");
+    sessionStorage.setItem(
+      "eram-active-view-state",
+      JSON.stringify({
+        selectedCategory: ui.selectedCategory,
+        searchQuery: ui.searchQuery,
+        sortBy: ui.sortBy,
+        visibleCount: ui.visibleCount,
+        filters: ui.filters,
+        posFilters: ui.posFilters,
+        advancedFiltersOpen: ui.advancedFiltersOpen,
+        scrollX: window.scrollX,
+        scrollY: window.scrollY,
+        messageScrollTop: document.getElementById("chat-messages-scroll")?.scrollTop || 0
+      })
+    );
+    persistNavigationHistory();
+  }
+
+  window.addEventListener("pagehide", saveActiveViewState);
 
   // =========================================================================
   // 4. REPUTACIÓ, NIVELLS I ALGORISME DE VISIBILITAT
@@ -1076,6 +1623,65 @@ import {
         secondedCount: 0
       }
     );
+  }
+
+  function getStudentByName(name) {
+    if (typeof name !== "string") return undefined;
+    const normalizedName = name.trim().toLocaleLowerCase();
+    return state.students.find(
+      (student) =>
+        typeof student.name === "string" && student.name.trim().toLocaleLowerCase() === normalizedName
+    );
+  }
+
+  function getStudentByDisplayName(name) {
+    const normalize = (value) =>
+      value.normalize("NFD").replace(/\p{Diacritic}/gu, "").trim().replace(/\s+/g, " ").toLocaleLowerCase();
+    const normalizedName = normalize(name);
+    return state.students.find(
+      (student) => typeof student.name === "string" && normalize(student.name) === normalizedName
+    );
+  }
+
+  function getProjectParticipantIds(project) {
+    const participantIds = new Set(
+      Array.isArray(project.participantIds)
+        ? project.participantIds.filter((id) => typeof id === "string" && id)
+        : []
+    );
+    const participantDetails = Array.isArray(project.participantDetails)
+      ? project.participantDetails.filter((participant) => participant && typeof participant === "object")
+      : [];
+    participantDetails.forEach((participant) => {
+      if (typeof participant.id === "string" && participant.id) participantIds.add(participant.id);
+    });
+    const participantNames = new Set(
+      [
+        ...(Array.isArray(project.participants) ? project.participants : []),
+        ...participantDetails.map((participant) => participant.name)
+      ]
+        .filter((name) => typeof name === "string")
+        .map((name) => name.trim().toLocaleLowerCase())
+        .filter(Boolean)
+    );
+
+    participantNames.forEach((name) => {
+      const student = getStudentByName(name);
+      if (student) participantIds.add(student.id);
+    });
+    return [...participantIds];
+  }
+
+  function isProjectParticipant(project, userId = state.currentUserId) {
+    return Boolean(userId) && (project.ownerId === userId || getProjectParticipantIds(project).includes(userId));
+  }
+
+  function canManageProject(project, userId = state.currentUserId) {
+    return project.ownerId === userId || (project.participantsCanManage === true && isProjectParticipant(project, userId));
+  }
+
+  function isProjectHiddenFromPortfolio(project, userId) {
+    return Array.isArray(project.hiddenFromPortfolioBy) && project.hiddenFromPortfolioBy.includes(userId);
   }
 
   function getStudentById(id) {
@@ -1224,6 +1830,7 @@ import {
 
     const advancedPanel = document.getElementById("advanced-filters-panel");
     if (advancedPanel) advancedPanel.classList.add("hidden");
+    ui.advancedFiltersOpen = false;
 
     document.querySelectorAll("[data-category]").forEach((button) => {
       const isGeneral = button.dataset.category === "General";
@@ -1232,17 +1839,73 @@ import {
     });
   }
 
-  function navigateTo(route, payloadId = null) {
+  function restoreSavedViewControls() {
+    const searchInput = document.getElementById("global-search-input");
+    const searchClear = document.getElementById("search-clear-btn");
+    if (searchInput) searchInput.value = ui.searchQuery;
+    if (searchClear) searchClear.classList.toggle("hidden", !ui.searchQuery);
+
+    [
+      ["filter-subject", ui.filters.subject],
+      ["filter-professor", ui.filters.professor],
+      ["filter-year", ui.filters.year],
+      ["filter-stage", ui.filters.stage],
+      ["filter-team", ui.filters.teamType],
+      ["filter-status", ui.filters.status],
+      ["pos-filter-role", ui.posFilters.role],
+      ["pos-filter-comp", ui.posFilters.compensation],
+      ["pos-filter-type", ui.posFilters.projectType],
+      ["pos-filter-location", ui.posFilters.location]
+    ].forEach(([id, value]) => {
+      const control = document.getElementById(id);
+      if (control) control.value = value;
+    });
+
+    const urgentFilter = document.getElementById("filter-urgent-only");
+    if (urgentFilter) urgentFilter.checked = ui.filters.urgentOnly;
+    document.querySelectorAll("[data-category]").forEach((button) => {
+      const isActive = button.dataset.category === ui.selectedCategory;
+      button.classList.toggle("active", isActive);
+      button.setAttribute("aria-selected", String(isActive));
+    });
+
+    const advancedPanel = document.getElementById("advanced-filters-panel");
+    const advancedToggle = document.getElementById("toggle-advanced-filters");
+    if (advancedPanel) advancedPanel.classList.toggle("hidden", !ui.advancedFiltersOpen);
+    if (advancedToggle) advancedToggle.setAttribute("aria-expanded", String(ui.advancedFiltersOpen));
+  }
+
+  function navigateTo(
+    route,
+    payloadId = null,
+    { restore = false, skipHistory = false, scrollX = savedScrollX, scrollY = savedScrollY } = {}
+  ) {
+    const currentRouteId = getCurrentRouteId();
+    const targetRouteId =
+      route === "project"
+        ? payloadId || (ui.route === route ? ui.activeProjectId : null)
+        : route === "profile"
+          ? payloadId || state.currentUserId
+          : route === "messages"
+            ? payloadId || (ui.route === route ? ui.activeConversationId : null)
+            : "";
+    const isDifferentScreen = ui.route !== route || currentRouteId !== targetRouteId;
+    if (!restore && !skipHistory && isDifferentScreen && document.body.classList.contains("authenticated")) {
+      navigationHistory.push(captureCurrentScreen());
+      navigationHistory = navigationHistory.slice(-30);
+    }
+
     ui.route = route;
     document.querySelector(".top-nav")?.classList.toggle(
       "search-hidden",
-      route === "leaderboard" || route === "messages"
+      route === "leaderboard" || route === "messages" || route === "profile"
     );
-    if (route === "discover") resetDiscoveryFilters();
+    if (route === "discover" && !restore) resetDiscoveryFilters();
+    if (restore) restoreSavedViewControls();
     if (route === "project" && payloadId) ui.activeProjectId = payloadId;
     if (route === "profile") {
       ui.activeProfileId = payloadId || state.currentUserId;
-      if (state.currentUserId && ui.activeProfileId === state.currentUserId) {
+      if (!restore && state.currentUserId && ui.activeProfileId === state.currentUserId) {
         void awardFirstOwnProfileVisit(state.currentUserId);
       }
     }
@@ -1250,6 +1913,13 @@ import {
       ui.activeConversationId = payloadId;
       document.getElementById("chat-shell")?.classList.add("mobile-thread-open");
     }
+    const routeId =
+      route === "project" ? ui.activeProjectId :
+      route === "profile" ? ui.activeProfileId :
+      route === "messages" ? ui.activeConversationId :
+      "";
+    sessionStorage.setItem("eram-active-route", route);
+    sessionStorage.setItem("eram-active-route-id", routeId || "");
 
     document.querySelectorAll(".nav-icon-btn").forEach((btn) => {
       btn.classList.toggle("active", btn.dataset.route === route);
@@ -1260,7 +1930,7 @@ import {
     if (targetSection) targetSection.classList.remove("hidden");
 
     closeAllPopovers();
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (!restore) window.scrollTo({ top: 0, behavior: "smooth" });
 
     if (route === "discover") renderDiscoverView();
     if (route === "project") renderProjectDetailView();
@@ -1268,6 +1938,12 @@ import {
     if (route === "messages") renderMessagesView();
     if (route === "profile") renderProfileView();
     if (route === "leaderboard") renderLeaderboardView();
+    if (restore) {
+      window.scrollTo(scrollX, scrollY);
+      restoreSavedViewOnEntry = false;
+    }
+    updateBackButton();
+    persistNavigationHistory();
   }
 
   // =========================================================================
@@ -1285,7 +1961,7 @@ import {
       subSel.innerHTML =
         `<option value="">Totes les assignatures</option>` +
         subjects.map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("");
-      subSel.value = prev;
+      subSel.value = ui.filters.subject || prev;
     }
 
     if (profSel) {
@@ -1293,7 +1969,7 @@ import {
       profSel.innerHTML =
         `<option value="">Tots els professors</option>` +
         professors.map((p) => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join("");
-      profSel.value = prev;
+      profSel.value = ui.filters.professor || prev;
     }
   }
 
@@ -1371,7 +2047,125 @@ import {
     }
   }
 
-  function renderDiscoverView() {
+  function animateCategoryResults(...elements) {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    elements.filter(Boolean).forEach((element) => {
+      element.classList.remove("category-results-enter");
+      void element.offsetWidth;
+      element.classList.add("category-results-enter");
+    });
+  }
+
+  function getSearchMatchedStudents(query) {
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+    if (normalizedQuery.length < 2) return [];
+
+    return state.students
+      .filter(
+        (student) =>
+          student.id !== state.currentUserId &&
+          [student.name, student.email].some((value) =>
+            typeof value === "string" && value.toLocaleLowerCase().includes(normalizedQuery)
+          )
+      )
+      .sort((a, b) => {
+        const score = (student) => {
+          const name = (student.name || "").toLocaleLowerCase();
+          const email = (student.email || "").toLocaleLowerCase();
+          if (name === normalizedQuery || email === normalizedQuery) return 0;
+          if (name.startsWith(normalizedQuery) || email.startsWith(normalizedQuery)) return 1;
+          return 2;
+        };
+        return score(a) - score(b) || (a.name || "").localeCompare(b.name || "");
+      });
+  }
+
+  function renderProjectCardMarkup(proj) {
+    const owner = getStudentById(proj.ownerId);
+    const commentsCount = state.comments.filter((comment) => comment.projectId === proj.id).length;
+    const daysLeft = getDaysUntilDeadline(proj.deadline);
+    const isUrgent = daysLeft >= 0 && daysLeft <= 5 && proj.status === "In progress";
+    const deadlineLabel =
+      daysLeft < 0 ? "Entregat" : daysLeft === 0 ? "Avui" : `Entrega en ${daysLeft}d`;
+
+    return `
+      <article class="masonry-card ${proj.aspect || "span-portrait"} ${isProjectCoverFramed(proj) ? "framed-cover" : ""}" tabindex="0" role="button" aria-label="Obrir projecte ${escapeHtml(proj.title)}" data-open-project="${escapeHtml(proj.id)}">
+        <img src="${escapeHtml(proj.cover)}" alt="${escapeHtml(proj.title)}" loading="lazy" />
+        <div class="card-overlay">
+          <div class="overlay-top">
+            <span class="overlay-badge">${escapeHtml(proj.category)}</span>
+            ${isUrgent ? `<span class="overlay-urgent">Feedback urgent</span>` : ""}
+          </div>
+          <div class="overlay-bottom">
+            <h3>${userContentMarkup(proj.title)}</h3>
+            <div class="overlay-meta">
+              <span>${escapeHtml(owner.name)}</span>
+              <span>${deadlineLabel} · ${commentsCount} comentaris</span>
+            </div>
+          </div>
+        </div>
+      </article>
+    `;
+  }
+
+  function renderUserSearchResults(students) {
+    const resultContainer = document.getElementById("user-search-results");
+    const availableProjects = state.projects
+      .filter((project) => !project.archived)
+      .sort(
+        (a, b) =>
+          (b.createdTimestamp || 0) - (a.createdTimestamp || 0) ||
+          new Date(b.createdAt) - new Date(a.createdAt)
+      );
+
+    resultContainer.innerHTML = students
+      .map((student) => {
+        const portfolioProjects = availableProjects.filter(
+          (project) =>
+            isProjectParticipant(project, student.id) &&
+            !isProjectHiddenFromPortfolio(project, student.id)
+        );
+        const publishedProjects = availableProjects.filter((project) => project.ownerId === student.id);
+        const participatedProjects = availableProjects.filter(
+          (project) => project.ownerId !== student.id && isProjectParticipant(project, student.id)
+        );
+        const commentedProjectIds = new Set(
+          state.comments
+            .filter((comment) => comment.authorId === student.id)
+            .map((comment) => comment.projectId)
+        );
+        const commentedProjects = availableProjects.filter((project) => commentedProjectIds.has(project.id));
+        const countLabel = `${portfolioProjects.length} ${portfolioProjects.length === 1 ? "projecte" : "projectes"}`;
+        const renderProjectSection = (title, projects, isCommented = false) =>
+          projects.length
+            ? `<section class="user-search-project-section">
+                <h2 class="user-search-section-title ${isCommented ? "user-search-commented-title" : ""}">${title}</h2>
+                <div class="masonry-container user-search-project-grid">${projects.map(renderProjectCardMarkup).join("")}</div>
+              </section>`
+            : "";
+
+        return `
+          <article class="user-search-result">
+            <div class="user-search-profile-card">
+              <div class="user-search-profile-info">
+                <img src="${escapeHtml(student.avatar)}" alt="${escapeHtml(student.name)}" />
+                <div>
+                  <strong>${escapeHtml(student.name)}</strong>
+                  <span>${countLabel}</span>
+                </div>
+              </div>
+              <button type="button" class="chip-action-btn" data-open-profile="${escapeHtml(student.id)}">Veure portafoli</button>
+            </div>
+            ${renderProjectSection("Projectes publicats", publishedProjects)}
+            ${renderProjectSection("Projectes on participa", participatedProjects)}
+            ${renderProjectSection("Ha comentat", commentedProjects, true)}
+          </article>
+        `;
+      })
+      .join("");
+  }
+
+  function renderDiscoverView({ animateCategory = false } = {}) {
     updateActiveFilterBadge();
     const activeCategoryLabel = document.getElementById("active-category-label");
     if (activeCategoryLabel) {
@@ -1381,6 +2175,21 @@ import {
     const grid = document.getElementById("projects-masonry-grid");
     const empty = document.getElementById("projects-empty-state");
     const loadMoreWrap = document.getElementById("load-more-container");
+    const userResults = document.getElementById("user-search-results");
+    const matchingStudents = getSearchMatchedStudents(ui.searchQuery);
+    if (matchingStudents.length) {
+      renderUserSearchResults(matchingStudents);
+      userResults.classList.remove("hidden");
+      grid.classList.add("hidden");
+      empty.classList.add("hidden");
+      loadMoreWrap.classList.add("hidden");
+      if (animateCategory) animateCategoryResults(userResults);
+      return;
+    }
+
+    userResults.classList.add("hidden");
+    userResults.innerHTML = "";
+    grid.classList.remove("hidden");
     const filtered = getFilteredProjects();
     const slice = filtered.slice(0, ui.visibleCount);
 
@@ -1388,41 +2197,15 @@ import {
       grid.innerHTML = "";
       empty.classList.remove("hidden");
       loadMoreWrap.classList.add("hidden");
+      if (animateCategory) animateCategoryResults(grid, empty);
       return;
     }
 
     empty.classList.add("hidden");
     loadMoreWrap.classList.toggle("hidden", filtered.length <= ui.visibleCount);
 
-    grid.innerHTML = slice
-      .map((proj) => {
-        const owner = getStudentById(proj.ownerId);
-        const commentsCount = state.comments.filter((c) => c.projectId === proj.id).length;
-        const daysLeft = getDaysUntilDeadline(proj.deadline);
-        const isUrgent = daysLeft >= 0 && daysLeft <= 5 && proj.status === "In progress";
-        const deadlineLabel =
-          daysLeft < 0 ? "Entregat" : daysLeft === 0 ? "Avui" : `Entrega en ${daysLeft}d`;
-
-        return `
-          <article class="masonry-card ${proj.aspect || "span-portrait"} ${isProjectCoverFramed(proj) ? "framed-cover" : ""}" tabindex="0" role="button" aria-label="Obrir projecte ${escapeHtml(proj.title)}" data-open-project="${proj.id}">
-            <img src="${escapeHtml(proj.cover)}" alt="${escapeHtml(proj.title)}" loading="lazy" />
-            <div class="card-overlay">
-              <div class="overlay-top">
-                <span class="overlay-badge">${escapeHtml(proj.category)}</span>
-                ${isUrgent ? `<span class="overlay-urgent">Feedback urgent</span>` : ""}
-              </div>
-              <div class="overlay-bottom">
-                <h3>${escapeHtml(proj.title)}</h3>
-                <div class="overlay-meta">
-                  <span>${escapeHtml(owner.name)}</span>
-                  <span>${deadlineLabel} · ${commentsCount} comentaris</span>
-                </div>
-              </div>
-            </div>
-          </article>
-        `;
-      })
-      .join("");
+    grid.innerHTML = slice.map(renderProjectCardMarkup).join("");
+    if (animateCategory) animateCategoryResults(grid, loadMoreWrap);
   }
 
   // =========================================================================
@@ -1445,6 +2228,7 @@ import {
   }
 
   function renderProjectDetailView() {
+    if (!state.projectsLoaded) return;
     const container = document.getElementById("view-project-detail");
     const proj = state.projects.find((p) => p.id === ui.activeProjectId);
     if (!proj) {
@@ -1455,10 +2239,18 @@ import {
     const owner = getStudentById(proj.ownerId);
     const currentUser = getCurrentUser();
     const isOwner = proj.ownerId === currentUser.id;
+    const isParticipant = isProjectParticipant(proj, currentUser.id);
+    const projectPortfolioUserIds = new Set(
+      [proj.ownerId, ...getProjectParticipantIds(proj)].filter((id) => typeof id === "string" && id)
+    );
+    const hasOtherPortfolioUsers = [...projectPortfolioUserIds].some((id) => id !== currentUser.id);
+    const canManage = canManageProject(proj, currentUser.id);
+    const isHiddenFromMyPortfolio = isProjectHiddenFromPortfolio(proj, currentUser.id);
     const projectComments = state.comments.filter((c) => c.projectId === proj.id);
 
     const projectMediaImages = (Array.isArray(proj.mediaImages) ? proj.mediaImages : [])
       .filter((image) => image && image.id && image.src);
+    const selectedPhotoReferences = new Set();
 
     const projectMediaColumns = [[], []];
     const projectMediaColumnHeights = [0, 0];
@@ -1494,13 +2286,28 @@ import {
         ? `${projectMediaColumnHeights[1]}fr ${projectMediaColumnHeights[0]}fr`
         : "1fr 1fr";
 
+    const participantDetails = Array.isArray(proj.participantDetails)
+      ? proj.participantDetails.filter((participant) => participant && typeof participant === "object")
+      : [];
     const projectParticipants = [
-      ...new Set([owner.name, ...(Array.isArray(proj.participants) ? proj.participants : []).filter(Boolean)])
+      ...new Set([
+        owner.name,
+        ...(Array.isArray(proj.participants) ? proj.participants : []).filter(Boolean),
+        ...participantDetails.map((participant) => participant.name).filter(Boolean)
+      ])
     ];
 
     const projectParticipantsMarkup = projectParticipants
       .map((name) => {
-        const participant = state.students.find((student) => student.name === name);
+        const participantDetail = participantDetails.find(
+          (detail) =>
+            (typeof detail.name === "string" &&
+              detail.name.trim().toLocaleLowerCase() === name.trim().toLocaleLowerCase()) ||
+            (detail.id && getStudentById(detail.id).name === name)
+        );
+        const participant =
+          state.students.find((student) => student.id === participantDetail?.id) ||
+          getStudentByName(name);
         const initials = name
           .split(/\s+/)
           .slice(0, 2)
@@ -1510,11 +2317,15 @@ import {
         const avatar = participant?.avatar
           ? `<img src="${escapeHtml(participant.avatar)}" alt="" />`
           : `<span class="detail-participant-initials" aria-hidden="true">${escapeHtml(initials)}</span>`;
-        const role = name === owner.name ? "Autor/a" : "Participant";
-        const content = `${avatar}<span class="detail-participant-name">${escapeHtml(name)}<small>${role}</small></span>`;
-        return participant
-          ? `<button type="button" class="detail-participant" data-open-profile="${escapeHtml(participant.id)}">${content}</button>`
-          : `<div class="detail-participant">${content}</div>`;
+        const role = name === owner.name ? "Autor/a" : participantDetail?.role || "Participant";
+        const roleMarkup = participantDetail?.role ? userContentMarkup(role) : role;
+        const avatarMarkup = participant
+          ? `<button type="button" class="detail-participant-profile" data-open-profile="${escapeHtml(participant.id)}" aria-label="Obrir perfil">${avatar}</button>`
+          : avatar;
+        const nameMarkup = participant
+          ? `<button type="button" class="detail-participant-name-trigger" data-open-profile="${escapeHtml(participant.id)}">${escapeHtml(name)}</button>`
+          : escapeHtml(name);
+        return `<div class="detail-participant">${avatarMarkup}<span class="detail-participant-name">${nameMarkup}<small>${roleMarkup}</small></span></div>`;
       })
       .join("");
 
@@ -1533,7 +2344,7 @@ import {
     const coverAspectRatio = projectAspectRatios[proj.aspect] || "3/4";
 
     const complementaryInfo = [
-      proj.professor && `<div><span>Professor/a</span><strong>${escapeHtml(proj.professor)}</strong></div>`,
+      proj.professor && `<div><span>Professor/a</span><strong>${userContentMarkup(proj.professor)}</strong></div>`,
       proj.year && `<div><span>Curs acadèmic</span><strong>${escapeHtml(proj.year)}</strong></div>`,
       proj.deadline && `<div><span>Data límit</span><strong>${escapeHtml(proj.deadline)}</strong></div>`
     ]
@@ -1542,10 +2353,6 @@ import {
 
     container.innerHTML = `
       <div class="page-container project-detail-page">
-        <div class="detail-back-bar">
-          <button type="button" class="btn-secondary-pill" id="detail-back-btn">&larr; Tornar a projectes</button>
-        </div>
-
         <section class="project-detail-main" aria-label="Projecte i galeria">
           <div class="detail-layout">
             <div class="project-gallery-column">
@@ -1588,14 +2395,14 @@ import {
                 <span class="pill-tag ${proj.status === "In progress" ? "" : "success"}">${escapeHtml(proj.status)}</span>
               </div>
 
-              <h1 class="detail-project-title">${escapeHtml(proj.title)}</h1>
+              <h1 class="detail-project-title">${userContentMarkup(proj.title)}</h1>
 
               <div class="detail-participants">
                 <h2>Autoria i participants</h2>
                 <div class="detail-participant-list">${projectParticipantsMarkup}</div>
               </div>
 
-              <p class="detail-project-description">${escapeHtml(proj.description)}</p>
+              <p class="detail-project-description">${userContentMarkup(proj.description)}</p>
 
               <div class="detail-project-facts">
                 ${proj.subject ? `<div><span>Assignatura</span><strong>${escapeHtml(proj.subject)}</strong></div>` : ""}
@@ -1603,22 +2410,32 @@ import {
               </div>
 
               ${
-                proj.briefing || proj.feedbackType || proj.questions
+                proj.briefing || proj.feedbackType
                   ? `<details class="detail-project-notes">
                       <summary>Briefing i feedback buscat</summary>
-                      ${proj.briefing ? `<p><strong>Objectius:</strong> ${escapeHtml(proj.briefing)}</p>` : ""}
-                      ${proj.feedbackType ? `<p><strong>Feedback:</strong> ${escapeHtml(proj.feedbackType)}</p>` : ""}
-                      ${proj.questions ? `<p><strong>Pregunta:</strong> ${escapeHtml(proj.questions)}</p>` : ""}
+                      ${proj.briefing ? `<p><strong>Objectius:</strong> ${userContentMarkup(proj.briefing)}</p>` : ""}
+                      ${proj.feedbackType ? `<p><strong>Feedback:</strong> ${userContentMarkup(proj.feedbackType)}</p>` : ""}
                     </details>`
                   : ""
               }
 
               ${
                 proj.teamType === "group" && proj.seekingCollaborator
-                  ? `<div class="detail-collaborator-request">
-                      <div><span>Es busca col·laboració</span><strong>${escapeHtml(proj.collaboratorRole || "Rol per concretar")}</strong></div>
-                      <button type="button" class="btn-secondary" data-contact-owner="${escapeHtml(owner.id)}">Contactar</button>
-                    </div>`
+                    ? `<div class="detail-collaborator-request">
+                        <div class="detail-collaborator-content">
+                          <div><span>Es busca col·laboració</span><strong>${proj.collaboratorRole ? userContentMarkup(proj.collaboratorRole) : "Rol per concretar"}</strong></div>
+                          <div class="detail-collaboration-meta">
+                            ${proj.collaborationStartDate || proj.collaborationEndDate ? `<span>Període: ${escapeHtml(proj.collaborationStartDate || "A concretar")} → ${escapeHtml(proj.collaborationEndDate || "A concretar")}</span>` : ""}
+                            ${proj.collaborationCompensation ? `<span>${escapeHtml(proj.collaborationCompensation)}</span>` : ""}
+                            ${proj.collaborationLocation ? `<span>${escapeHtml(proj.collaborationLocation)}</span>` : ""}
+                            ${proj.collaborationPlace ? `<span>Ubicació: ${userContentMarkup(proj.collaborationPlace)}</span>` : ""}
+                            ${proj.collaborationTransport ? `<span>Transport: ${escapeHtml(proj.collaborationTransport)}</span>` : ""}
+                            ${proj.collaborationExpenses ? `<span>Dietes: ${escapeHtml(proj.collaborationExpenses)}</span>` : ""}
+                          </div>
+                          ${proj.collaborationDetails ? `<p class="detail-collaborator-details">${userContentMarkup(proj.collaborationDetails)}</p>` : ""}
+                        </div>
+                        <button type="button" class="btn-secondary" data-contact-owner="${escapeHtml(owner.id)}">Contactar</button>
+                      </div>`
                   : ""
               }
 
@@ -1626,9 +2443,13 @@ import {
 
               <div class="detail-project-actions">
                 ${
+                  canManage
+                    ? `<button type="button" class="btn-secondary-pill" id="edit-project-btn">Editar projecte</button>`
+                    : ""
+                }
+                ${
                   isOwner
-                    ? `<button type="button" class="btn-secondary-pill" id="edit-project-btn">Editar projecte</button>
-                       <select id="owner-status-select" class="pill-select" aria-label="Canviar estat del projecte">
+                    ? `<select id="owner-status-select" class="pill-select" aria-label="Canviar estat del projecte">
                          <option value="In progress" ${proj.status === "In progress" ? "selected" : ""}>En curs</option>
                          <option value="Submitted" ${proj.status === "Submitted" ? "selected" : ""}>Entregat (+5 pts)</option>
                          <option value="Resolved" ${proj.status === "Resolved" ? "selected" : ""}>Resolt (+5 pts)</option>
@@ -1655,11 +2476,9 @@ import {
             <textarea id="new-comment-text" rows="3" placeholder="Escriu una crítica constructiva, suggeriment tècnic o referència útil (mínim 20 caràcters per obtenir punts)..." required></textarea>
             ${
               projectMediaImages.length
-                ? `<input type="hidden" id="comment-photo-reference" value="" />
-                   <div class="comment-photo-linking" id="comment-photo-linking" hidden>
-                     <img id="comment-photo-reference-preview" alt="" />
-                     <span id="comment-photo-reference-label"></span>
-                     <button type="button" id="comment-photo-reference-clear">Treure</button>
+                ? `<div class="comment-photo-linking" id="comment-photo-linking" hidden>
+                     <div class="comment-photo-reference-list" id="comment-photo-reference-list"></div>
+                     <button type="button" id="comment-photo-reference-clear">Treure totes</button>
                    </div>`
                 : ""
             }
@@ -1688,15 +2507,24 @@ import {
         }
 
         ${
-          isOwner
+          canManage || isParticipant
             ? `<section class="project-management-section" id="project-management-section" aria-label="Gestionar projecte">
                 <div>
-                  <h2>Arxivar o eliminar el projecte</h2>
-                  <p>Arxivar-lo el conservarà al teu perfil i l'amagarà de les llistes públiques. Eliminar-lo esborrarà també els comentaris.</p>
+                  <h2>Gestionar projecte i portafoli</h2>
+                  <p>${hasOtherPortfolioUsers ? "Pots amagar-lo només del teu portafoli. Les accions per a tothom afecten tots els participants i les llistes públiques." : "Les accions per a tothom afecten les llistes públiques."}</p>
                 </div>
                 <div class="project-management-actions">
-                  <button type="button" class="btn-secondary-pill" id="archive-project-btn">${proj.archived ? "Desarxivar projecte" : "Arxivar projecte"}</button>
-                  <button type="button" class="project-delete-btn" id="delete-project-btn">Eliminar projecte</button>
+                  ${
+                    isParticipant && hasOtherPortfolioUsers
+                      ? `<button type="button" class="btn-secondary-pill" id="toggle-my-project-portfolio">${isHiddenFromMyPortfolio ? "Tornar a afegir al meu portafoli" : "Arxivar només al meu portafoli"}</button>`
+                      : ""
+                  }
+                  ${
+                    canManage
+                      ? `<button type="button" class="btn-secondary-pill" id="archive-project-btn">${proj.archived ? "Desarxivar per a tothom" : "Arxivar per a tothom"}</button>
+                         <button type="button" class="project-delete-btn" id="delete-project-btn">Eliminar per a tothom</button>`
+                      : ""
+                  }
                 </div>
               </section>`
             : ""
@@ -1706,7 +2534,6 @@ import {
 
     updateProjectDetailStickyTop();
 
-    document.getElementById("detail-back-btn").addEventListener("click", () => navigateTo("discover"));
     document.getElementById("detail-comment-action").addEventListener("click", () => {
       document.getElementById("project-comments-section").scrollIntoView({ behavior: "smooth", block: "start" });
     });
@@ -1721,11 +2548,8 @@ import {
           const imageId = commentAction.dataset.commentProjectPhoto;
           const image = projectMediaImages.find((projectImage) => projectImage.id === imageId);
           if (!image) return;
-          document.getElementById("comment-photo-reference").value = image.id;
-          document.getElementById("comment-photo-reference-preview").src = image.src;
-          document.getElementById("comment-photo-reference-preview").alt = image.name || "Fotografia referenciada";
-          document.getElementById("comment-photo-reference-label").textContent = `Comentari sobre: ${image.name || "Fotografia del projecte"}`;
-          document.getElementById("comment-photo-linking").hidden = false;
+          selectedPhotoReferences.add(image.id);
+          renderCommentPhotoReferences();
           document.getElementById("project-comments-section").scrollIntoView({ behavior: "smooth", block: "start" });
           requestAnimationFrame(() => document.getElementById("new-comment-text").focus({ preventScroll: true }));
           return;
@@ -1743,14 +2567,63 @@ import {
       });
     }
 
+    const renderCommentPhotoReferences = () => {
+      const linking = document.getElementById("comment-photo-linking");
+      const referenceList = document.getElementById("comment-photo-reference-list");
+      if (!linking || !referenceList) return;
+      const selectedImages = projectMediaImages.filter((image) => selectedPhotoReferences.has(image.id));
+      referenceList.innerHTML = selectedImages
+        .map(
+          (image) => `
+            <div class="comment-photo-reference-chip">
+              <img src="${escapeHtml(image.src)}" alt="${escapeHtml(image.name || "Fotografia referenciada")}" />
+              <span>${escapeHtml(image.name || "Fotografia del projecte")}</span>
+              <button type="button" data-remove-comment-photo="${escapeHtml(image.id)}" aria-label="Treure ${escapeHtml(image.name || "fotografia")}">&times;</button>
+            </div>
+          `
+        )
+        .join("");
+      linking.hidden = selectedImages.length === 0;
+    };
+
+    document.getElementById("comment-photo-reference-list")?.addEventListener("click", (event) => {
+      if (!(event.target instanceof Element)) return;
+      const removeButton = event.target.closest("[data-remove-comment-photo]");
+      if (!removeButton) return;
+      selectedPhotoReferences.delete(removeButton.dataset.removeCommentPhoto);
+      renderCommentPhotoReferences();
+    });
+
     document.getElementById("comment-photo-reference-clear")?.addEventListener("click", () => {
-      document.getElementById("comment-photo-reference").value = "";
-      document.getElementById("comment-photo-linking").hidden = true;
+      selectedPhotoReferences.clear();
+      renderCommentPhotoReferences();
     });
 
     const editBtn = document.getElementById("edit-project-btn");
     if (editBtn) {
-      editBtn.addEventListener("click", () => openEditProjectModal(proj));
+      editBtn.addEventListener("click", () => {
+        if (!canManageProject(proj, currentUser.id)) {
+          showToast("No tens permís per editar aquest projecte.");
+          return;
+        }
+        openEditProjectModal(proj);
+      });
+    }
+
+    const myPortfolioButton = document.getElementById("toggle-my-project-portfolio");
+    if (myPortfolioButton) {
+      myPortfolioButton.addEventListener("click", async () => {
+        if (!isProjectParticipant(proj, currentUser.id)) {
+          showToast("Només els participants poden canviar el seu portafoli.");
+          return;
+        }
+        await updateDoc(doc(db, "projects", proj.id), {
+          hiddenFromPortfolioBy: isHiddenFromMyPortfolio
+            ? arrayRemove(currentUser.id)
+            : arrayUnion(currentUser.id)
+        });
+        showToast(isHiddenFromMyPortfolio ? "Projecte afegit al teu portafoli." : "Projecte arxivat només al teu portafoli.");
+      });
     }
 
     const statusSel = document.getElementById("owner-status-select");
@@ -1769,15 +2642,23 @@ import {
     const archiveProjectButton = document.getElementById("archive-project-btn");
     if (archiveProjectButton) {
       archiveProjectButton.addEventListener("click", async () => {
+        if (!canManageProject(proj, currentUser.id)) {
+          showToast("No tens permís per arxivar aquest projecte per a tothom.");
+          return;
+        }
         const nextArchived = !Boolean(proj.archived);
         await updateDoc(doc(db, "projects", proj.id), { archived: nextArchived });
-        showToast(nextArchived ? "Projecte arxivat." : "Projecte desarxivat.");
+        showToast(nextArchived ? "Projecte arxivat per a tothom." : "Projecte desarxivat per a tothom.");
       });
     }
 
     const deleteProjectButton = document.getElementById("delete-project-btn");
     if (deleteProjectButton) {
       deleteProjectButton.addEventListener("click", async () => {
+        if (!canManageProject(proj, currentUser.id)) {
+          showToast("No tens permís per eliminar aquest projecte per a tothom.");
+          return;
+        }
         if (!window.confirm(`Vols eliminar definitivament «${proj.title}»? També s'eliminaran els comentaris d'aquest projecte.`)) return;
         await deleteDoc(doc(db, "projects", proj.id));
         const relatedComments = state.comments.filter((c) => c.projectId === proj.id);
@@ -1808,28 +2689,34 @@ import {
       }
 
       const priorCount = state.comments.filter((c) => c.projectId === proj.id).length;
-      const photoReference = document.getElementById("comment-photo-reference")?.value || "";
+      const photoReferenceIds = [...selectedPhotoReferences];
       const commentId = "com-" + Date.now();
       const newComment = {
         id: commentId,
         projectId: proj.id,
         authorId: currentUser.id,
         text,
-        mediaImageId: photoReference,
+        mediaImageIds: photoReferenceIds,
+        mediaImageId: photoReferenceIds[0] || "",
         createdAt: new Date().toLocaleTimeString("ca-ES", { hour: "2-digit", minute: "2-digit" }),
         createdTimestamp: Date.now(),
         secondedBy: [],
-        usefulnessRating: 0
+        usefulnessRating: 0,
+        authorCommentCounted: !isOwner
       };
 
-      await setDoc(doc(db, "comments", commentId), newComment);
-
-      if (!isOwner && text.length >= 20) {
-        await setDoc(
+      const commentBatch = writeBatch(db);
+      commentBatch.set(doc(db, "comments", commentId), newComment);
+      if (!isOwner) {
+        commentBatch.set(
           doc(db, "students", currentUser.id),
-          { commentsCount: (currentUser.commentsCount || 0) + 1 },
+          { commentsCount: increment(1) },
           { merge: true }
         );
+      }
+      await commentBatch.commit();
+
+      if (!isOwner && text.length >= 20) {
         const reward =
           priorCount === 0
             ? COMMENT_REWARDS.first
@@ -1845,6 +2732,8 @@ import {
         await pushNotification(proj.ownerId, `${currentUser.name} ha deixat feedback al teu projecte "${proj.title}"`, "project", proj.id);
       }
       textarea.value = "";
+      selectedPhotoReferences.clear();
+      renderCommentPhotoReferences();
     });
 
     renderCommentsList(proj, "useful");
@@ -1877,7 +2766,16 @@ import {
         const secondedBy = Array.isArray(c.secondedBy) ? c.secondedBy : [];
         const isSeconded = secondedBy.includes(currentUser.id);
         const canRate = isProjectOwner && c.authorId !== currentUser.id;
-        const referencedImage = projectMediaImages.find((image) => image.id === c.mediaImageId);
+        const referencedImageIds =
+          Array.isArray(c.mediaImageIds) && c.mediaImageIds.length
+            ? c.mediaImageIds
+            : c.mediaImageId
+              ? [c.mediaImageId]
+              : [];
+        const referencedImages = [...new Set(referencedImageIds)]
+          .map((imageId) => projectMediaImages.find((image) => image.id === imageId))
+          .filter(Boolean);
+        const referencedImage = referencedImages[0];
 
         const starsHtml = [1, 2, 3, 4, 5]
           .map((star) => {
@@ -1901,13 +2799,19 @@ import {
                 ${starsHtml}
               </div>
             </div>
-            <p style="margin:0;font-size: 13.5px; line-height:1.55;">${escapeHtml(c.text)}</p>
+            <p style="margin:0;font-size: 13.5px; line-height:1.55;">${userContentMarkup(c.text)}</p>
             ${
-              referencedImage
-                ? `<button type="button" class="comment-photo-reference" data-open-project-photo="${escapeHtml(referencedImage.id)}" data-project-id="${escapeHtml(proj.id)}">
-                    <img src="${escapeHtml(referencedImage.src)}" alt="${escapeHtml(referencedImage.name || "Fotografia referenciada")}" />
-                    <span>Fotografia referenciada: <strong>${escapeHtml(referencedImage.name || "Fotografia del projecte")}</strong></span>
-                  </button>`
+              referencedImages.length
+                ? `<div class="comment-photo-references">
+                    ${referencedImages
+                      .map(
+                        (image) => `<button type="button" class="comment-photo-reference" data-open-project-photo="${escapeHtml(image.id)}" data-project-id="${escapeHtml(proj.id)}">
+                          <img src="${escapeHtml(image.src)}" alt="${escapeHtml(image.name || "Fotografia referenciada")}" />
+                          <span>Fotografia referenciada: <strong>${escapeHtml(image.name || "Fotografia del projecte")}</strong></span>
+                        </button>`
+                      )
+                      .join("")}
+                  </div>`
                 : ""
             }
             <div class="comment-actions">
@@ -1963,17 +2867,65 @@ import {
         const com = state.comments.find((item) => item.id === btn.dataset.rateComment);
         const stars = Number(btn.dataset.star);
         if (!com || !isProjectOwner) return;
-        await updateDoc(doc(db, "comments", com.id), { usefulnessRating: stars });
-        if (stars >= 4) {
-          const author = getStudentById(com.authorId);
-          await setDoc(
-            doc(db, "students", com.authorId),
-            { usefulCommentsCount: (author.usefulCommentsCount || 0) + 1 },
-            { merge: true }
-          );
-          await awardPoints(com.authorId, `useful-${com.id}`, 5, `Comentari valorat amb ${stars}★ per ${currentUser.name}`);
+        const commentRef = doc(db, "comments", com.id);
+        const ratingResult = await runTransaction(db, async (transaction) => {
+          const commentSnapshot = await transaction.get(commentRef);
+          if (!commentSnapshot.exists()) return null;
+
+          const latestComment = commentSnapshot.data();
+          const authorRef = doc(db, "students", latestComment.authorId);
+          const authorSnapshot = await transaction.get(authorRef);
+          const author = authorSnapshot.data() || {};
+          const commentText = typeof latestComment.text === "string" ? latestComment.text : "";
+          const previousRating = Number(latestComment.usefulnessRating) || 0;
+          const wasUseful = previousRating >= 4;
+          const isUseful = stars >= 4;
+          const wasCountedOnCreation =
+            latestComment.authorCommentCounted === true ||
+            (latestComment.authorCommentCounted == null && commentText.trim().length >= 20);
+          const authorUpdate = {};
+
+          if (!wasCountedOnCreation && latestComment.authorId !== proj.ownerId) {
+            authorUpdate.commentsCount = (Number(author.commentsCount) || 0) + 1;
+          }
+          if (wasUseful !== isUseful) {
+            authorUpdate.usefulCommentsCount = Math.max(
+              0,
+              (Number(author.usefulCommentsCount) || 0) + (isUseful ? 1 : -1)
+            );
+          }
+
+          transaction.update(commentRef, {
+            usefulnessRating: stars,
+            authorCommentCounted: true
+          });
+          if (Object.keys(authorUpdate).length) {
+            transaction.set(authorRef, authorUpdate, { merge: true });
+          }
+
+          return {
+            authorId: latestComment.authorId,
+            becameUseful: !wasUseful && isUseful
+          };
+        });
+        if (!ratingResult) {
+          showToast("No s'ha trobat el comentari que vols valorar.");
+          return;
         }
-        await pushNotification(com.authorId, `${currentUser.name} ha valorat el teu feedback amb ${stars} estrelles`, "project", proj.id);
+        if (ratingResult.becameUseful) {
+          await awardPoints(
+            ratingResult.authorId,
+            `useful-${com.id}`,
+            5,
+            `Comentari valorat amb ${stars}★ per ${currentUser.name}`
+          );
+        }
+        await pushNotification(
+          ratingResult.authorId,
+          `${currentUser.name} ha valorat el teu feedback amb ${stars} estrelles`,
+          "project",
+          proj.id
+        );
       });
     });
 
@@ -2006,13 +2958,16 @@ import {
         projectTitle: project.title,
         role: project.collaboratorRole || "Altres perfils",
         spots: 1,
-        compensation: "Academic collaboration",
-        startDate: project.createdAt || "Actualment",
-        endDate: project.deadline || "Sense data",
-        location: "Hybrid",
+        compensation: project.collaborationCompensation || "Academic collaboration",
+        startDate: project.collaborationStartDate || project.createdAt || "Actualment",
+        endDate: project.collaborationEndDate || project.deadline || "Sense data",
+        location: project.collaborationLocation || "Hybrid",
+        place: project.collaborationPlace || "",
+        transport: project.collaborationTransport || "",
+        expenses: project.collaborationExpenses || "",
         projectType: "Academic",
         year: project.year,
-        description: project.description,
+        description: [project.collaborationDetails, project.description].filter(Boolean).join("\n\n"),
         ownerId: project.ownerId,
         createdAt: "Oportunitat del projecte",
         status: "Open",
@@ -2054,15 +3009,18 @@ import {
                 <span class="pill-tag">${escapeHtml(pos.role)}</span>
                 <span class="pill-tag ${pos.status === "Open" ? "success" : ""}">${pos.status === "Open" ? `${pos.spots} plaça/es` : "Tancada"}</span>
               </div>
-              <h3>${escapeHtml(pos.title)}</h3>
-              <div style="font-size:13px; color:var(--text-secondary); font-weight:500;">Projecte: ${escapeHtml(pos.projectTitle)}</div>
+              <h3>${userContentMarkup(pos.title)}</h3>
+              <div style="font-size:13px; color:var(--text-secondary); font-weight:500;">Projecte: ${userContentMarkup(pos.projectTitle)}</div>
               <div class="position-meta-pills">
                 <span class="pill-tag">${escapeHtml(pos.compensation)}</span>
                 <span class="pill-tag">${escapeHtml(pos.location)}</span>
                 <span class="pill-tag">${escapeHtml(pos.projectType)} · ${escapeHtml(pos.year)}</span>
                 <span class="pill-tag">${escapeHtml(pos.startDate)} &rarr; ${escapeHtml(pos.endDate)}</span>
+                ${pos.place ? `<span class="pill-tag">Ubicació: ${userContentMarkup(pos.place)}</span>` : ""}
+                ${pos.transport ? `<span class="pill-tag">Transport: ${escapeHtml(pos.transport)}</span>` : ""}
+                ${pos.expenses ? `<span class="pill-tag">Dietes: ${escapeHtml(pos.expenses)}</span>` : ""}
               </div>
-              <p style="font-size: 13.5px; color:var(--text-secondary); margin:8px 0 0;">${escapeHtml(pos.description)}</p>
+              <p style="font-size: 13.5px; color:var(--text-secondary); margin:8px 0 0;">${userContentMarkup(pos.description)}</p>
             </div>
             <div>
               <div class="position-card-footer">
@@ -2096,8 +3054,8 @@ import {
                             <div class="applicant-item">
                               <div>
                                 <strong>${escapeHtml(candidate.name)}</strong> (${escapeHtml(candidate.year)})
-                                <div style="font-size:12px; color:var(--text-secondary);">${escapeHtml(app.intro)}</div>
-                                <div style="font-size:11.5px; color:var(--text-muted);">Habilitats: ${escapeHtml(app.skills || "No especificat")}</div>
+                                <div style="font-size:12px; color:var(--text-secondary);">${userContentMarkup(app.intro)}</div>
+                                <div style="font-size:11.5px; color:var(--text-muted);">Habilitats: ${userContentMarkup(app.skills || "No especificat")}</div>
                               </div>
                               <div style="display: flex; gap:6px; align-items:center;">
                                 ${
@@ -2289,7 +3247,7 @@ import {
             <img src="${escapeHtml(other.avatar)}" alt="${escapeHtml(other.name)}" />
             <div class="conv-info">
               <strong>${escapeHtml(other.name)}</strong>
-              <p>${lastMessage ? escapeHtml(lastMessage.text) : "Inicia la conversa..."}</p>
+              <p>${lastMessage ? userContentMarkup(lastMessage.text) : "Inicia la conversa..."}</p>
             </div>
           </div>
         `;
@@ -2317,7 +3275,7 @@ import {
               message.ref
                 ? `<div class="msg-context-ref" ${message.ref.id ? `data-open-project="${escapeHtml(message.ref.id)}"` : ""} ${
                     message.ref.commentId ? `data-open-project-comment="${escapeHtml(message.ref.commentId)}"` : ""
-                  }>&#128206; ${escapeHtml(message.ref.label)}</div>`
+                  }>&#128206; ${userContentMarkup(message.ref.label)}</div>`
                 : ""
             }
             ${
@@ -2325,7 +3283,7 @@ import {
                 ? `<button type="button" class="msg-context-photo-ref" data-open-project-photo="${escapeHtml(message.ref.mediaImageId)}" data-project-id="${escapeHtml(message.ref.id)}">&#128247; Foto: ${escapeHtml(message.ref.mediaImageLabel || "Fotografia del projecte")}</button>`
                 : ""
             }
-            <div>${escapeHtml(message.text)}</div>
+            <div>${userContentMarkup(message.text)}</div>
             <span class="msg-time">${escapeHtml(message.timestamp)}</span>
           </div>
         `;
@@ -2508,7 +3466,14 @@ import {
     }
 
     const scrollBox = document.getElementById("chat-messages-scroll");
-    if (scrollBox) scrollBox.scrollTop = scrollBox.scrollHeight;
+    if (scrollBox) {
+      if (restoreMessageScroll) {
+        scrollBox.scrollTop = savedMessageScrollTop;
+        restoreMessageScroll = false;
+      } else {
+        scrollBox.scrollTop = scrollBox.scrollHeight;
+      }
+    }
 
     document.getElementById("send-chat-form").addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -2567,7 +3532,10 @@ import {
     const student = getStudentById(ui.activeProfileId || state.currentUserId);
     const tier = getAchievementTier(student.points || 0);
     const studentProjects = state.projects.filter(
-      (p) => p.ownerId === student.id && (!p.archived || student.id === state.currentUserId)
+      (project) =>
+        isProjectParticipant(project, student.id) &&
+        !project.archived &&
+        !isProjectHiddenFromPortfolio(project, student.id)
     );
     const studentSubjects = student.interests || [];
     const degreeLabel = REGISTRATION_PROGRAMS[student.degree]?.label || "";
@@ -2600,7 +3568,7 @@ import {
               <button type="button" class="pill-tag profile-ranking-link" data-route="leaderboard" style="border:0;cursor:pointer;">Rànquing #${rank || "-"}</button>
             </div>
             <p style="margin:4px 0 8px; color:var(--text-secondary);">${degreeLabel ? `${escapeHtml(degreeLabel)} · ` : ""}${escapeHtml(student.year)} · ${escapeHtml(student.email)}</p>
-            <p style="margin:0 0 10px;font-size: 13.5px;">${escapeHtml(student.bio || "")}</p>
+            <p style="margin:0 0 10px;font-size: 13.5px;">${userContentMarkup(student.bio || "")}</p>
             ${
               studentSubjects.length
                 ? `<details class="profile-subjects-dropdown">
@@ -2641,7 +3609,7 @@ import {
         </div>
 
         <div class="stats-strip">
-          <div class="stat-box"><strong>${studentProjects.length}</strong><span>Projectes publicats</span></div>
+          <div class="stat-box"><strong>${studentProjects.length}</strong><span>Projectes al portafoli</span></div>
           <div class="stat-box"><strong>${student.commentsCount || 0}</strong><span>Comentaris fets</span></div>
           <div class="stat-box"><strong>${student.usefulCommentsCount || 0}</strong><span>Valorats molt útils</span></div>
           <div class="stat-box"><strong>${student.secondedCount || 0}</strong><span>Cops secundat</span></div>
@@ -2651,18 +3619,32 @@ import {
         <div class="masonry-container" style="padding:0;">
           ${studentProjects
             .map(
-              (proj) => `
-              <article class="masonry-card ${proj.aspect || "span-portrait"} ${isProjectCoverFramed(proj) ? "framed-cover" : ""}" data-open-project="${proj.id}">
-                <img src="${escapeHtml(proj.cover)}" alt="${escapeHtml(proj.title)}" />
-                <div class="card-overlay" style="opacity:1;">
-                  <div class="overlay-top"><span class="overlay-badge">${escapeHtml(proj.category)}</span></div>
-                  <div class="overlay-bottom">
-                    <h3>${escapeHtml(proj.title)}</h3>
-                    <div class="overlay-meta"><span>${escapeHtml(proj.subject)}</span><span>${escapeHtml(proj.status)}</span></div>
-                  </div>
-                </div>
-              </article>
-            `
+              (proj) => {
+                const participantRole = (Array.isArray(proj.participantDetails) ? proj.participantDetails : [])
+                  .filter((participant) => participant && typeof participant === "object")
+                  .find(
+                    (participant) =>
+                      participant.id === student.id ||
+                      (typeof participant.name === "string" &&
+                        participant.name.trim().toLocaleLowerCase() ===
+                          (student.name || "").trim().toLocaleLowerCase())
+                  )?.role;
+                return `
+                  <article class="masonry-card ${proj.aspect || "span-portrait"} ${isProjectCoverFramed(proj) ? "framed-cover" : ""}" data-open-project="${escapeHtml(proj.id)}">
+                    <img src="${escapeHtml(proj.cover)}" alt="${escapeHtml(proj.title)}" />
+                    <div class="card-overlay" style="opacity:1;">
+                      <div class="overlay-top"><span class="overlay-badge">${escapeHtml(proj.category)}</span></div>
+                      <div class="overlay-bottom">
+                        <h3>${userContentMarkup(proj.title)}</h3>
+                        <div class="overlay-meta">
+                          <span>${escapeHtml(proj.subject)}</span>
+                          <span>${participantRole ? `Rol: ${userContentMarkup(participantRole)} · ` : ""}${escapeHtml(proj.status)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                `;
+              }
             )
             .join("")}
         </div>
@@ -2987,7 +3969,30 @@ import {
   function openModal(modalId) {
     closeAllPopovers();
     const modal = document.getElementById(modalId);
-    if (modal) modal.classList.remove("hidden");
+    if (!modal) return;
+    const activeModal = document.querySelector(".modal-backdrop:not(.hidden)");
+    if (activeModal && activeModal.id !== modalId) modalBackHistory.push(activeModal.id);
+    ensureModalBackButton(modal);
+    modal.classList.remove("hidden");
+    updateBackButton();
+  }
+
+  function ensureModalBackButton(modal) {
+    const header = modal.querySelector(".modal-header, .create-modal-header");
+    if (!header || header.querySelector(".modal-back-btn")) return;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "modal-back-btn";
+    button.dataset.appBack = "";
+    button.setAttribute("aria-label", "Tornar a l'acció anterior");
+    button.title = "Tornar enrere";
+    button.innerHTML = `
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M19 12H5" />
+        <path d="m12 19-7-7 7-7" />
+      </svg>
+    `;
+    header.insertBefore(button, header.firstChild);
   }
 
   function openLevelsModal(student) {
@@ -3074,29 +4079,172 @@ import {
       <p style="margin-bottom:0;color:var(--text-secondary);line-height:1.6;">
         El projecte fomenta el treball en xarxa entre cursos i graus per ajudar cada estudiant a millorar la qualitat dels seus treballs abans del lliurament final.
       </p>
+      <p style="margin:14px 0 0;color:var(--text-secondary);line-height:1.6;">
+        Aquest projecte es va iniciar en el marc de l'assignatura Creació d'empreses l'any 2026.
+      </p>
+      <p style="margin:12px 0 4px;color:var(--text-secondary);line-height:1.6;">
+        Aquest treball l'hem fet els següents alumnes de GCAM:
+      </p>
+      <div class="about-contributors">
+        ${["Aina Padrosa", "Fabià Pérez", "Judit Delicado", "Queralt Costa", "Saaddin Alonso"]
+          .map(
+            (name, index) =>
+              `${index ? ", " : ""}<button type="button" class="about-contributor-link" data-open-profile-name="${escapeHtml(name)}" data-close-modal="modal-subject" data-i18n-ignore>${escapeHtml(name)}</button>`
+          )
+          .join("")}
+      </div>
     `;
     openModal("modal-subject");
   }
 
-  function populateParticipantDropdown(selectedParticipants = []) {
-    const select = document.getElementById("proj-registered-participant");
-    if (!select) return;
+  const PROJECT_PARTICIPANT_ROLES = [
+    "Disseny sonor",
+    "Direcció de fotografia",
+    "Direcció",
+    "Muntatge / Edició",
+    "Interpretació / Actors",
+    "Fotografia",
+    "Disseny gràfic",
+    "Animació / 3D",
+    "Guió",
+    "Producció",
+    "UI/UX",
+    "Altres perfils"
+  ];
+
+  function getProjectParticipantRows() {
+    const seenNames = new Set();
+    return [...document.querySelectorAll("#proj-participant-rows .project-participant-row")]
+      .map((row) => {
+        const name = row.querySelector(".project-participant-name").value.trim();
+        const normalizedName = name.toLocaleLowerCase();
+        if (!name || seenNames.has(normalizedName)) return null;
+        seenNames.add(normalizedName);
+        const student =
+          state.students.find((candidate) => candidate.id === row.dataset.participantId) ||
+          getStudentByName(name);
+        return {
+          id: student?.id || "",
+          name,
+          role: row.querySelector(".project-participant-role").value
+        };
+      })
+      .filter(Boolean);
+  }
+
+  function getProjectParticipantRowMarkup(participant = {}) {
+    const selectedRole = typeof participant.role === "string" ? participant.role : "";
+    const roleChoices =
+      selectedRole && !PROJECT_PARTICIPANT_ROLES.includes(selectedRole)
+        ? [selectedRole, ...PROJECT_PARTICIPANT_ROLES]
+        : PROJECT_PARTICIPANT_ROLES;
+    const roleOptions = [
+      `<option value="">Rol opcional</option>`,
+      ...roleChoices.map(
+        (role) => `<option value="${escapeHtml(role)}" ${selectedRole === role ? "selected" : ""}>${escapeHtml(role)}</option>`
+      )
+    ].join("");
+    const participantName = typeof participant.name === "string" ? participant.name : "";
+    return `
+      <div class="project-participant-row" data-participant-id="${escapeHtml(participant.id || "")}">
+        <input type="text" class="project-participant-name" value="${escapeHtml(participantName)}" placeholder="Nom i cognoms" aria-label="Nom del participant" />
+        <select class="project-participant-role" aria-label="Rol del participant">${roleOptions}</select>
+        <button type="button" class="project-participant-remove" data-remove-project-participant aria-label="Eliminar participant">&times;</button>
+      </div>
+    `;
+  }
+
+  function addProjectParticipantRow(participant = {}) {
+    document
+      .getElementById("proj-participant-rows")
+      .insertAdjacentHTML("beforeend", getProjectParticipantRowMarkup(participant));
+    const addedRow = document.querySelector("#proj-participant-rows .project-participant-row:last-child");
+    if (!participant.name) addedRow.querySelector(".project-participant-name").focus();
+    populateParticipantSearch();
+  }
+
+  function renderProjectParticipantRows(project) {
+    document.getElementById("proj-participant-search").value = "";
+    const participantDetails = Array.isArray(project.participantDetails)
+      ? project.participantDetails.filter((participant) => participant && typeof participant === "object")
+      : [];
+    const names = new Set([
+      ...(Array.isArray(project.participants) ? project.participants : []),
+      ...participantDetails.map((participant) => participant.name),
+      ...getProjectParticipantIds(project).map((id) => getStudentById(id).name)
+    ]);
+    const participants = [...names]
+      .filter((name) => typeof name === "string" && name.trim())
+      .map((name) => {
+        const detail = participantDetails.find(
+          (participant) =>
+            (typeof participant.name === "string" &&
+              participant.name.trim().toLocaleLowerCase() === name.trim().toLocaleLowerCase()) ||
+            (participant.id && getStudentById(participant.id).name === name)
+        );
+        const student = getStudentByName(name);
+        return {
+          id: detail?.id || student?.id || "",
+          name,
+          role: detail?.role || ""
+        };
+      });
+    document.getElementById("proj-participant-rows").innerHTML = participants
+      .map(getProjectParticipantRowMarkup)
+      .join("");
+    populateParticipantSearch();
+  }
+
+  function populateParticipantSearch() {
+    const input = document.getElementById("proj-participant-search");
+    const suggestions = document.getElementById("proj-participant-suggestions");
+    if (!input || !suggestions) return;
+    const query = input.value.trim().toLocaleLowerCase();
+    if (!query) {
+      suggestions.innerHTML = "";
+      suggestions.classList.add("hidden");
+      input.setAttribute("aria-expanded", "false");
+      return;
+    }
+
     const currentUser = getCurrentUser();
-    const candidates = state.students.filter(
-      (student) => student.id !== currentUser.id && !selectedParticipants.includes(student.name)
+    const selectedParticipants = getProjectParticipantRows();
+    const selectedIds = new Set(selectedParticipants.map((participant) => participant.id).filter(Boolean));
+    const selectedNames = new Set(
+      selectedParticipants.map((participant) => participant.name.trim().toLocaleLowerCase())
     );
-    select.innerHTML =
-      `<option value="">Selecciona un alumne registrat...</option>` +
-      candidates
-        .map((student) => `<option value="${escapeHtml(student.name)}">${escapeHtml(student.name)} (${escapeHtml(student.year)})</option>`)
-        .join("");
+    const candidates = state.students.filter(
+      (student) =>
+        student.id !== currentUser.id &&
+        !selectedIds.has(student.id) &&
+        typeof student.name === "string" &&
+        !selectedNames.has(student.name.trim().toLocaleLowerCase()) &&
+        `${student.name} ${student.year || ""}`.toLocaleLowerCase().includes(query)
+    );
+    suggestions.innerHTML = candidates.length
+      ? candidates
+          .slice(0, 12)
+          .map(
+            (student) => `
+              <button type="button" class="subject-suggestion-item" data-add-registered-participant="${escapeHtml(student.id)}" role="option">
+                <span>${escapeHtml(student.name)}</span>
+                <small>${escapeHtml(student.year || "")}</small>
+              </button>`
+          )
+          .join("")
+      : `<div class="subject-suggestion-empty">Cap coincidència. Prem Retorn per afegir «${escapeHtml(input.value.trim())}».</div>`;
+    suggestions.classList.remove("hidden");
+    input.setAttribute("aria-expanded", "true");
   }
 
   function openNewProjectModal() {
     document.getElementById("modal-project-title").textContent = "Publicar nou projecte";
     document.getElementById("publish-project-form").reset();
     document.getElementById("proj-edit-id").value = "";
+    document.getElementById("proj-participants-can-manage").disabled = false;
     document.getElementById("proj-deadline").value = daysFromNow(7);
+    document.getElementById("proj-collab-start").value = daysFromNow(3);
+    document.getElementById("proj-collab-end").value = daysFromNow(20);
     syncProjectAspectButtons("portrait");
     uploadedProjectCover = "";
     uploadedProjectMediaImages = [];
@@ -3104,7 +4252,7 @@ import {
     projectMediaUploadGeneration += 1;
     setProjectCropSource("");
     renderProjectMediaPreview();
-    populateParticipantDropdown();
+    populateParticipantSearch();
     syncProjectTeamFields();
     setProjectWizardStep(1);
     openModal("modal-publish-project");
@@ -3118,7 +4266,6 @@ import {
     const normAspect = (project.aspect || "portrait").replace(/^span-/, "");
     syncProjectAspectButtons(normAspect === "tall" ? "portrait" : normAspect === "landscape" ? "wide" : normAspect);
     document.getElementById("proj-cover-file").value = "";
-    document.getElementById("proj-cover").value = /^https?:\/\//i.test(project.cover || "") ? project.cover : "";
     uploadedProjectCover = project.cover || "";
     setProjectCropSource(project.cover || "", {
       dirty: false,
@@ -3129,14 +4276,25 @@ import {
     document.getElementById("proj-subject").value = project.subject || "";
     document.getElementById("proj-professor").value = project.professor || "";
     document.getElementById("proj-year").value = project.year || "1r Curs";
-    document.getElementById("proj-stage").value = project.stage || "Initial idea";
+    document.getElementById("proj-stage").value = project.stage || "";
     document.getElementById("proj-deadline").value = project.deadline || daysFromNow(7);
     document.getElementById("proj-team-type").value = project.teamType || "individual";
-    document.getElementById("proj-participants").value = (project.participants || []).join(", ");
+    document.getElementById("proj-participant-search").value = "";
     document.getElementById("proj-seeking-collaborator").checked = Boolean(project.seekingCollaborator);
     document.getElementById("proj-collab-role").value = project.collaboratorRole || "Dissenyador/a gràfic/a";
+    document.getElementById("proj-collab-start").value = project.collaborationStartDate || daysFromNow(3);
+    document.getElementById("proj-collab-end").value = project.collaborationEndDate || daysFromNow(20);
+    document.getElementById("proj-collab-compensation").value = project.collaborationCompensation || "Academic collaboration";
+    document.getElementById("proj-collab-location").value = project.collaborationLocation || "Hybrid";
+    document.getElementById("proj-collab-place").value = project.collaborationPlace || "";
+    document.getElementById("proj-collab-transport").value = project.collaborationTransport || "";
+    document.getElementById("proj-collab-expenses").value = project.collaborationExpenses || "No incloses";
+    document.getElementById("proj-collab-details").value = project.collaborationDetails || "";
     syncProjectTeamFields();
-    populateParticipantDropdown(project.participants || []);
+    if (project.teamType === "group") renderProjectParticipantRows(project);
+    const participantsCanManage = document.getElementById("proj-participants-can-manage");
+    participantsCanManage.checked = Boolean(project.participantsCanManage);
+    participantsCanManage.disabled = project.ownerId !== getCurrentUser().id;
     document.getElementById("proj-media-url").value = project.mediaUrl || "";
     document.getElementById("proj-media-images").value = "";
     uploadedProjectMediaImages = Array.isArray(project.mediaImages) ? project.mediaImages.map((image) => ({ ...image })) : [];
@@ -3144,7 +4302,6 @@ import {
     projectMediaUploadGeneration += 1;
     renderProjectMediaPreview();
     document.getElementById("proj-feedback-type").value = project.feedbackType || "";
-    document.getElementById("proj-questions").value = project.questions || "";
     setProjectWizardStep(1);
     openModal("modal-publish-project");
   }
@@ -3211,9 +4368,77 @@ import {
     openModal("modal-edit-profile");
   }
 
-  function closeModal(modalId) {
+  function openSettingsModal() {
+    const languageSelect = document.getElementById("language-select");
+    if (languageSelect) languageSelect.value = ui.language;
+    openModal("modal-settings");
+  }
+
+  function closeModal(modalId, { keepForBack = false, preserveHistory = false } = {}) {
     const modal = document.getElementById(modalId);
     if (modal) modal.classList.add("hidden");
+    if (keepForBack) {
+      modalBackHistory.push(modalId);
+    } else if (!preserveHistory) {
+      modalBackHistory.length = 0;
+    }
+    updateBackButton();
+  }
+
+  function restoreNavigationEntry(entry) {
+    ui.selectedCategory = typeof entry.selectedCategory === "string" ? entry.selectedCategory : "General";
+    ui.searchQuery = typeof entry.searchQuery === "string" ? entry.searchQuery : "";
+    ui.sortBy = typeof entry.sortBy === "string" ? entry.sortBy : "recent";
+    ui.visibleCount = Number.isFinite(entry.visibleCount) && entry.visibleCount >= 15 ? entry.visibleCount : 15;
+    ui.advancedFiltersOpen = entry.advancedFiltersOpen === true;
+    ui.filters = {
+      subject: typeof entry.filters?.subject === "string" ? entry.filters.subject : "",
+      professor: typeof entry.filters?.professor === "string" ? entry.filters.professor : "",
+      year: typeof entry.filters?.year === "string" ? entry.filters.year : "",
+      stage: typeof entry.filters?.stage === "string" ? entry.filters.stage : "",
+      teamType: typeof entry.filters?.teamType === "string" ? entry.filters.teamType : "",
+      status: typeof entry.filters?.status === "string" ? entry.filters.status : "active",
+      urgentOnly: entry.filters?.urgentOnly === true
+    };
+    ui.posFilters = {
+      role: typeof entry.posFilters?.role === "string" ? entry.posFilters.role : "",
+      compensation: typeof entry.posFilters?.compensation === "string" ? entry.posFilters.compensation : "",
+      projectType: typeof entry.posFilters?.projectType === "string" ? entry.posFilters.projectType : "",
+      location: typeof entry.posFilters?.location === "string" ? entry.posFilters.location : ""
+    };
+    ui.activeProjectId = entry.route === "project" ? entry.routeId : null;
+    ui.activeProfileId = entry.route === "profile" ? entry.routeId : null;
+    ui.activeConversationId = entry.route === "messages" ? entry.routeId : null;
+
+    navigateTo(entry.route, entry.routeId || null, {
+      restore: true,
+      skipHistory: true,
+      scrollX: Number.isFinite(entry.scrollX) ? entry.scrollX : 0,
+      scrollY: Number.isFinite(entry.scrollY) ? entry.scrollY : 0
+    });
+  }
+
+  function handleAppBack() {
+    const activeModal = [...document.querySelectorAll(".modal-backdrop:not(.hidden)")].at(-1);
+    if (activeModal) {
+      if (activeModal.id === "modal-publish-project" && projectWizardStep > 1) {
+        goBackProjectWizardStep();
+        return;
+      }
+
+      const previousModal = modalBackHistory.pop();
+      closeModal(activeModal.id, { preserveHistory: true });
+      if (previousModal) openModal(previousModal);
+      return;
+    }
+
+    const previousScreen = navigationHistory.pop();
+    if (!previousScreen) {
+      updateBackButton();
+      return;
+    }
+    persistNavigationHistory();
+    restoreNavigationEntry(previousScreen);
   }
 
   function showToast(message) {
@@ -3420,7 +4645,18 @@ import {
     document.body.classList.add("authenticated");
     const authPage = document.getElementById("auth-page");
     if (authPage) authPage.classList.add("hidden");
-    navigateTo("discover");
+    document.body.classList.remove("auth-loading");
+    navigateTo(
+      ui.route,
+      ui.route === "project"
+        ? ui.activeProjectId
+        : ui.route === "profile"
+          ? ui.activeProfileId
+          : ui.route === "messages"
+            ? ui.activeConversationId
+            : null,
+      { restore: restoreSavedViewOnEntry }
+    );
   }
 
   function setupAuthFlow() {
@@ -3697,8 +4933,17 @@ import {
   // 13. INICIALITZACIÓ I LISTENERS GLOBALS
   // =========================================================================
   function bindEvents() {
+    document.addEventListener("click", (event) => {
+      if (!(event.target instanceof Element)) return;
+      const backButton = event.target.closest("[data-app-back]");
+      if (!backButton) return;
+      event.preventDefault();
+      event.stopPropagation();
+      handleAppBack();
+    });
+
     document.querySelectorAll(".nav-icon-btn").forEach((btn) => {
-      btn.addEventListener("click", () => navigateTo(btn.dataset.route));
+      if (btn.dataset.route) btn.addEventListener("click", () => navigateTo(btn.dataset.route));
     });
 
     document.getElementById("platform-menu-trigger").addEventListener("click", (e) => {
@@ -3733,7 +4978,10 @@ import {
       btn.addEventListener("click", () => {
         const action = btn.dataset.action;
         closeAllPopovers();
-        closeModal("modal-create");
+        const opensNewModal = action === "open-publish-project" || action === "open-publish-position";
+        const createModal = document.getElementById("modal-create");
+        const cameFromCreateMenu = createModal && !createModal.classList.contains("hidden");
+        closeModal("modal-create", { keepForBack: opensNewModal && cameFromCreateMenu });
         if (action === "open-publish-project") {
           openNewProjectModal();
         }
@@ -3747,7 +4995,7 @@ import {
           openAboutModal();
         }
         if (action === "open-settings") {
-          openEditProfileModal(getCurrentUser());
+          openSettingsModal();
         }
       });
     });
@@ -3782,21 +5030,23 @@ import {
 
     document.querySelectorAll("[data-category]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        ui.selectedCategory = btn.dataset.category;
+        const clickedCategory = btn.dataset.category;
+        ui.selectedCategory = clickedCategory === ui.selectedCategory ? "General" : clickedCategory;
         ui.visibleCount = 15;
         document.querySelectorAll("[data-category]").forEach((b) => {
           const active = b.dataset.category === ui.selectedCategory;
           b.classList.toggle("active", active);
           b.setAttribute("aria-selected", String(active));
         });
-        renderDiscoverView();
+        renderDiscoverView({ animateCategory: true });
       });
     });
 
     document.getElementById("toggle-advanced-filters").addEventListener("click", (e) => {
       const panel = document.getElementById("advanced-filters-panel");
       const open = panel.classList.toggle("hidden");
-      e.currentTarget.setAttribute("aria-expanded", String(!open));
+      ui.advancedFiltersOpen = !open;
+      e.currentTarget.setAttribute("aria-expanded", String(ui.advancedFiltersOpen));
     });
 
     [
@@ -3881,20 +5131,71 @@ import {
     });
 
     document.getElementById("proj-wizard-next").addEventListener("click", advanceProjectWizard);
-    document.getElementById("proj-wizard-back").addEventListener("click", () => setProjectWizardStep(projectWizardStep - 1));
+    document.getElementById("proj-wizard-back").addEventListener("click", goBackProjectWizardStep);
     document.getElementById("proj-team-type").addEventListener("change", syncProjectTeamFields);
     document.getElementById("proj-seeking-collaborator").addEventListener("change", syncProjectTeamFields);
-    document.getElementById("proj-registered-participant").addEventListener("change", (e) => {
-      const name = e.target.value;
+    document.getElementById("proj-participant-rows").addEventListener("input", (e) => {
+      const nameInput = e.target.closest(".project-participant-name");
+      if (!nameInput) return;
+      nameInput.closest(".project-participant-row").dataset.participantId = "";
+      populateParticipantSearch();
+    });
+    document.getElementById("proj-participant-rows").addEventListener("click", (e) => {
+      const removeButton = e.target.closest("[data-remove-project-participant]");
+      if (!removeButton) return;
+      removeButton.closest(".project-participant-row").remove();
+      populateParticipantSearch();
+    });
+    const participantSearchInput = document.getElementById("proj-participant-search");
+    participantSearchInput.addEventListener("input", populateParticipantSearch);
+    participantSearchInput.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      const name = participantSearchInput.value.trim();
       if (!name) return;
-      const participantsInput = document.getElementById("proj-participants");
-      const participants = participantsInput.value.split(",").map((p) => p.trim()).filter(Boolean);
-      if (!participants.includes(name)) {
-        participants.push(name);
-        participantsInput.value = participants.join(", ");
+
+      const normalizedName = name.toLocaleLowerCase();
+      const existingParticipants = getProjectParticipantRows();
+      if (existingParticipants.some((participant) => participant.name.toLocaleLowerCase() === normalizedName)) {
+        participantSearchInput.value = "";
+        populateParticipantSearch();
+        return;
       }
-      populateParticipantDropdown(participants);
-      e.target.value = "";
+
+      const currentUser = getCurrentUser();
+      const registeredParticipant = state.students.find(
+        (student) =>
+          student.id !== currentUser.id &&
+          typeof student.name === "string" &&
+          student.name.trim().toLocaleLowerCase() === normalizedName
+      );
+      if (registeredParticipant) {
+        addProjectParticipantRow({ id: registeredParticipant.id, name: registeredParticipant.name });
+      } else {
+        addProjectParticipantRow({ name });
+      }
+      participantSearchInput.value = "";
+      populateParticipantSearch();
+      participantSearchInput.focus();
+    });
+    document.getElementById("proj-participant-suggestions").addEventListener("click", (e) => {
+      const option = e.target.closest("[data-add-registered-participant]");
+      if (!option) return;
+      const student = state.students.find((candidate) => candidate.id === option.dataset.addRegisteredParticipant);
+      if (!student) return;
+      const alreadyAdded = getProjectParticipantRows().some((participant) => participant.id === student.id);
+      const searchInput = document.getElementById("proj-participant-search");
+      searchInput.value = "";
+      if (!alreadyAdded) addProjectParticipantRow({ id: student.id, name: student.name });
+      populateParticipantSearch();
+      searchInput.focus();
+    });
+    document.addEventListener("click", (e) => {
+      if (e.target.closest(".participant-autocomplete-wrap")) return;
+      const suggestions = document.getElementById("proj-participant-suggestions");
+      const input = document.getElementById("proj-participant-search");
+      suggestions.classList.add("hidden");
+      input.setAttribute("aria-expanded", "false");
     });
 
     document.getElementById("proj-media-images").addEventListener("change", async (e) => {
@@ -3923,7 +5224,6 @@ import {
       const file = e.target.files?.[0];
       if (!file || !file.type.startsWith("image/")) return;
       uploadedProjectCover = "";
-      document.getElementById("proj-cover").value = "";
       const reader = new FileReader();
       reader.onload = () => {
         if (typeof reader.result === "string") {
@@ -3931,19 +5231,6 @@ import {
         }
       };
       reader.readAsDataURL(file);
-    });
-
-    document.getElementById("proj-cover").addEventListener("change", (e) => {
-      const url = e.target.value.trim();
-      if (!url) {
-        if (!uploadedProjectCover && !projectCrop.source.startsWith("data:")) {
-          setProjectCropSource("");
-        }
-        return;
-      }
-      document.getElementById("proj-cover-file").value = "";
-      uploadedProjectCover = "";
-      setProjectCropSource(url);
     });
 
     document.getElementById("proj-crop-zoom").addEventListener("input", (e) => {
@@ -3964,7 +5251,6 @@ import {
     document.getElementById("proj-cover-remove").addEventListener("click", () => {
       uploadedProjectCover = "";
       document.getElementById("proj-cover-file").value = "";
-      document.getElementById("proj-cover").value = "";
       setProjectCropSource("");
     });
 
@@ -3995,8 +5281,20 @@ import {
     // PUBLICAR / EDITAR PROJECTE AL NÚVOL (FIRESTORE + STORAGE)
     document.getElementById("publish-project-form").addEventListener("submit", async (e) => {
       e.preventDefault();
+      if (projectWizardStep < getProjectWizardSteps().length) {
+        advanceProjectWizard();
+        return;
+      }
       if (projectMediaUploadPending) {
         showToast("Espera que s'acabin de processar les imatges seleccionades.");
+        return;
+      }
+
+      const currentUser = getCurrentUser();
+      const editId = document.getElementById("proj-edit-id").value;
+      const existingProject = editId ? state.projects.find((project) => project.id === editId) : null;
+      if (editId && (!existingProject || !canManageProject(existingProject, currentUser.id))) {
+        showToast("No tens permís per editar aquest projecte.");
         return;
       }
 
@@ -4005,9 +5303,6 @@ import {
       submitBtn.textContent = "Publicant...";
 
       try {
-        const currentUser = getCurrentUser();
-        const editId = document.getElementById("proj-edit-id").value;
-        const existingProject = editId ? state.projects.find((project) => project.id === editId) : null;
         const category = document.getElementById("proj-category").value;
         const aspect = document.getElementById("proj-aspect").value || "portrait";
 
@@ -4024,7 +5319,7 @@ import {
           }
         }
 
-        let coverInput = uploadedProjectCover || document.getElementById("proj-cover").value.trim();
+        let coverInput = uploadedProjectCover;
         if (coverInput.startsWith("data:image")) {
           coverInput = await uploadDataUrlIfNeeded(coverInput, "covers");
         }
@@ -4039,11 +5334,30 @@ import {
         }
 
         const teamType = document.getElementById("proj-team-type").value;
-        const rawParticipants = document.getElementById("proj-participants").value;
+        const seekingCollaborator =
+          teamType === "group" && document.getElementById("proj-seeking-collaborator").checked;
+        const participantEntries = teamType === "group" ? getProjectParticipantRows() : [];
         const participants =
-          teamType === "group" && rawParticipants.trim()
-            ? rawParticipants.split(",").map((s) => s.trim()).filter(Boolean)
+          teamType === "group" && participantEntries.length
+            ? participantEntries.map((participant) => participant.name)
             : [currentUser.name];
+        const participantDetails = participantEntries.map((participant) => ({
+          id: participant.id,
+          name: participant.name,
+          role: participant.role
+        }));
+        const participantIds = [
+          ...new Set(
+            participantEntries.length
+              ? participantEntries.map((participant) => participant.id).filter(Boolean)
+              : [currentUser.id]
+          )
+        ];
+        const canParticipantsManage =
+          teamType === "group" &&
+          (existingProject && existingProject.ownerId !== currentUser.id
+            ? Boolean(existingProject.participantsCanManage)
+            : document.getElementById("proj-participants-can-manage").checked);
 
         const projectData = {
           title: document.getElementById("proj-title").value.trim(),
@@ -4060,15 +5374,26 @@ import {
           stage: document.getElementById("proj-stage").value,
           teamType,
           participants,
-          seekingCollaborator: teamType === "group" && document.getElementById("proj-seeking-collaborator").checked,
-          collaboratorRole:
-            teamType === "group" && document.getElementById("proj-seeking-collaborator").checked
-              ? document.getElementById("proj-collab-role").value
-              : "",
+          participantIds,
+          participantDetails,
+          participantsCanManage: canParticipantsManage,
+          seekingCollaborator,
+          collaboratorRole: seekingCollaborator ? document.getElementById("proj-collab-role").value : "",
+          collaborationStartDate: seekingCollaborator ? document.getElementById("proj-collab-start").value : "",
+          collaborationEndDate: seekingCollaborator ? document.getElementById("proj-collab-end").value : "",
+          collaborationCompensation: seekingCollaborator
+            ? document.getElementById("proj-collab-compensation").value
+            : "",
+          collaborationLocation: seekingCollaborator ? document.getElementById("proj-collab-location").value : "",
+          collaborationPlace: seekingCollaborator ? document.getElementById("proj-collab-place").value.trim() : "",
+          collaborationTransport: seekingCollaborator ? document.getElementById("proj-collab-transport").value : "",
+          collaborationExpenses: seekingCollaborator ? document.getElementById("proj-collab-expenses").value : "",
+          collaborationDetails: seekingCollaborator
+            ? document.getElementById("proj-collab-details").value.trim()
+            : "",
           mediaUrl: document.getElementById("proj-media-url").value.trim(),
           mediaImages: uploadedGallery,
-          feedbackType: document.getElementById("proj-feedback-type").value.trim(),
-          questions: document.getElementById("proj-questions").value.trim()
+          feedbackType: document.getElementById("proj-feedback-type").value.trim()
         };
 
         if (existingProject) {
@@ -4255,7 +5580,7 @@ import {
 
     document.querySelectorAll(".modal-backdrop").forEach((backdrop) => {
       backdrop.addEventListener("click", (e) => {
-        if (e.target === backdrop) backdrop.classList.add("hidden");
+        if (e.target === backdrop) closeModal(backdrop.id);
       });
     });
 
@@ -4302,6 +5627,17 @@ import {
         return;
       }
 
+      const namedProfileEl = e.target.closest("[data-open-profile-name]");
+      if (namedProfileEl) {
+        const student = getStudentByDisplayName(namedProfileEl.dataset.openProfileName);
+        if (student) {
+          navigateTo("profile", student.id);
+        } else {
+          showToast(ui.language === "en" ? "This student profile is not available yet." : "Aquest perfil encara no està disponible.");
+        }
+        return;
+      }
+
       const contactOwner = e.target.closest("[data-contact-owner]");
       if (contactOwner) {
         startOrOpenConversation(contactOwner.dataset.contactOwner);
@@ -4314,9 +5650,10 @@ import {
       }
       if (e.key === "Escape") {
         closeAllPopovers();
-        document.querySelectorAll(".modal-backdrop").forEach((m) => m.classList.add("hidden"));
+        document.querySelectorAll(".modal-backdrop:not(.hidden)").forEach((modal) => closeModal(modal.id));
       }
     });
+    updateBackButton();
   }
 
   window.addEventListener("resize", updateProjectDetailStickyTop);
@@ -4334,6 +5671,7 @@ import {
   // =========================================================================
   function init() {
     setupAuthFlow();
+    initializeTranslation();
     bindEvents();
 
     onAuthStateChanged(auth, async (user) => {
@@ -4343,6 +5681,15 @@ import {
         startRealtimeSync();
 
         const userSnap = await getDoc(doc(db, "students", user.uid));
+        if (userSnap.exists() && (userSnap.data().language === "ca" || userSnap.data().language === "en")) {
+          ui.language = userSnap.data().language;
+          localStorage.setItem("eram-language", ui.language);
+          const languageSelect = document.getElementById("language-select");
+          if (languageSelect) languageSelect.value = ui.language;
+          failedTranslationKeys.clear();
+          translationErrorNotified = false;
+          void translatePageContent();
+        }
         if (!userSnap.exists()) {
           const fallbackName = user.displayName || user.email?.split("@")[0] || "Estudiant ERAM";
           await setDoc(doc(db, "students", user.uid), {
@@ -4354,6 +5701,7 @@ import {
             avatarColor: "#8f7cf6",
             avatar: makeInitialAvatar(fallbackName, "#8f7cf6"),
             bio: "Estudiant a l'ERAM.",
+            language: ui.language,
             interests: [],
             points: 0,
             projectsCount: 0,
@@ -4364,12 +5712,15 @@ import {
         }
 
         enterApp();
+        void translatePageContent();
       } else {
         state.currentUserId = null;
         document.body.classList.remove("authenticated");
         const authPage = document.getElementById("auth-page");
         if (authPage) authPage.classList.remove("hidden");
       }
+      document.body.classList.remove("auth-loading");
+      document.getElementById("auth-loading-overlay")?.classList.add("hidden");
     });
   }
 

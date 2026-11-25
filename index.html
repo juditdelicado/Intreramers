@@ -12,8 +12,11 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body>
+<body class="auth-loading">
   <div id="popover-underlay" class="popover-underlay hidden" aria-hidden="true"></div>
+  <div id="auth-loading-overlay" class="auth-loading-overlay" role="status" aria-label="Carregant">
+    <span class="auth-loading-spinner" aria-hidden="true"></span>
+  </div>
 
   <!-- FULL-SCREEN ACCOUNT ACCESS PAGE -->
   <section id="auth-page" class="auth-page" aria-label="Accés a Intreramer">
@@ -359,6 +362,15 @@
     </div>
   </header>
 
+  <div class="page-back-container">
+    <button type="button" class="page-back-btn" id="app-back-btn" data-app-back title="Tornar enrere" aria-label="Tornar a la pantalla anterior" disabled>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M19 12H5" />
+        <path d="m12 19-7-7 7-7" />
+      </svg>
+    </button>
+  </div>
+
   <!-- MAIN VIEWPORT CONTAINER -->
   <main id="app-main" class="app-main">
     <!-- VIEW 1: HOMEPAGE PROJECT DISCOVERY -->
@@ -451,6 +463,8 @@
           </div>
         </div>
       </div>
+
+      <div class="user-search-results hidden" id="user-search-results" aria-live="polite"></div>
 
       <!-- Pinterest-Inspired Organic Masonry Grid -->
       <div class="masonry-container" id="projects-masonry-grid" aria-live="polite"></div>
@@ -589,7 +603,7 @@
         <input type="hidden" id="proj-edit-id" />
 
         <div class="project-wizard-progress" aria-live="polite">
-          <span id="proj-wizard-step-label">Pas 1 de 5 · Portada i dades principals</span>
+          <span id="proj-wizard-step-label">Pas 1 de 4 · Portada i dades principals</span>
           <div class="project-wizard-progress-track" aria-hidden="true">
             <span data-wizard-progress="1" class="is-active"></span>
             <span data-wizard-progress="2"></span>
@@ -610,10 +624,6 @@
                 <div class="form-group">
                   <label for="proj-cover-file">Pujar fitxer</label>
                   <input type="file" id="proj-cover-file" accept="image/*" />
-                </div>
-                <div class="form-group">
-                  <label for="proj-cover">O enganxa URL</label>
-                  <input type="url" id="proj-cover" placeholder="https://..." />
                 </div>
               </div>
 
@@ -645,7 +655,7 @@
               </div>
 
               <div id="proj-cover-placeholder" class="project-cover-placeholder">
-                <p>Selecciona una imatge o enganxa un enllaç per triar-ne el format (3:4, 1:1 o 16:9) i enquadrar-la.</p>
+                <p>Puja una imatge per triar-ne el format (3:4, 1:1 o 16:9) i enquadrar-la.</p>
               </div>
 
               <div class="form-error hidden" id="proj-crop-error"></div>
@@ -701,8 +711,12 @@
             <textarea id="proj-description" rows="3" required placeholder="Explica en què consisteix el projecte, el concepte i el punt en què es troba..."></textarea>
           </div>
           <div class="form-group">
-            <label for="proj-briefing">Objectius i requisits del briefing *</label>
-            <textarea id="proj-briefing" rows="3" required placeholder="Quins són els objectius principals o les restriccions de l'encàrrec?"></textarea>
+            <label for="proj-briefing">Objectius i requisits del projecte</label>
+            <textarea id="proj-briefing" rows="3" placeholder="Quins són els objectius principals o les restriccions de l'encàrrec?"></textarea>
+          </div>
+          <div class="form-group">
+            <label for="proj-feedback-type">Feedback que t'agradaria rebre</label>
+            <input type="text" id="proj-feedback-type" placeholder="Ex.: Composició tipogràfica, ritme del muntatge, usabilitat..." />
           </div>
         </section>
 
@@ -722,6 +736,7 @@
             <div class="form-group">
               <label for="proj-stage">Fase actual</label>
               <select id="proj-stage">
+                <option value="" selected></option>
                 <option value="Initial idea">1. Idea inicial</option>
                 <option value="Research and references">2. Recerca i referències</option>
                 <option value="Pre-production">3. Preproducció</option>
@@ -741,13 +756,29 @@
           </div>
 
           <div id="proj-participants-wrap" hidden>
-            <div class="form-group">
-              <label for="proj-registered-participant">Afegir company/a registrat</label>
-              <select id="proj-registered-participant"></select>
+            <div class="form-group participant-autocomplete-wrap">
+              <label for="proj-participant-search">Afegir participants</label>
+              <input
+                type="search"
+                id="proj-participant-search"
+                autocomplete="off"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded="false"
+                aria-controls="proj-participant-suggestions"
+                placeholder="Escriu un nom per cercar..."
+              />
+              <div id="proj-participant-suggestions" class="subject-suggestions-dropdown hidden" role="listbox"></div>
             </div>
             <div class="form-group">
-              <label for="proj-participants">Participants (separats per comes)</label>
-              <input type="text" id="proj-participants" placeholder="Laia Puig, Pol Vila..." />
+              <label>Participants</label>
+              <div id="proj-participant-rows" class="project-participant-rows"></div>
+            </div>
+            <div class="form-group">
+              <label class="checkbox-inline">
+                <input type="checkbox" id="proj-participants-can-manage" />
+                <span>Permetre que els participants editin, arxivin o eliminin el projecte per a tothom</span>
+              </label>
             </div>
           </div>
 
@@ -756,23 +787,90 @@
               <input type="checkbox" id="proj-seeking-collaborator" />
               <span>Busquem algun col·laborador extern per a aquest projecte</span>
             </label>
-            <div class="form-group" id="proj-collab-role-wrap" hidden>
-              <label for="proj-collab-role">Perfil buscat</label>
-              <select id="proj-collab-role">
-                <option value="Dissenyador/a gràfic/a">Dissenyador/a gràfic/a</option>
-                <option value="Disseny sonor">Disseny sonor</option>
-                <option value="Direcció de fotografia">Direcció de fotografia</option>
-                <option value="Muntatge / Edició">Muntatge / Edició</option>
-                <option value="Animació / 3D">Animació / 3D</option>
-                <option value="UI/UX">UI/UX</option>
-              </select>
-            </div>
           </div>
         </section>
 
-        <!-- PAS 4: MATERIAL MULTIMÈDIA -->
+        <!-- PAS OPCIONAL: DETALLS DE COL·LABORACIÓ -->
         <section data-project-step="4" hidden>
-          <div class="form-section-title">4. Material multimèdia</div>
+          <div class="form-section-title">Detalls de la col·laboració</div>
+          <p class="form-hint project-collaboration-hint">Concreta el perfil que busques, el període i les condicions per ajudar els candidats a valorar l'oportunitat.</p>
+          <div class="form-group">
+            <label for="proj-collab-role">Perfil buscat *</label>
+            <select id="proj-collab-role" required>
+              <option value="Dissenyador/a gràfic/a">Dissenyador/a gràfic/a</option>
+              <option value="Disseny sonor">Disseny sonor</option>
+              <option value="Direcció de fotografia">Direcció de fotografia</option>
+              <option value="Direcció">Direcció</option>
+              <option value="Muntatge / Edició">Muntatge / Edició</option>
+              <option value="Interpretació / Actors">Interpretació / Actors</option>
+              <option value="Fotografia">Fotografia</option>
+              <option value="Disseny gràfic">Disseny gràfic</option>
+              <option value="Animació / 3D">Animació / 3D</option>
+              <option value="Guió">Guió</option>
+              <option value="Producció">Producció</option>
+              <option value="UI/UX">UI/UX</option>
+              <option value="Altres perfils">Altres perfils</option>
+            </select>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label for="proj-collab-start">Data d'inici *</label>
+              <input type="date" id="proj-collab-start" required />
+            </div>
+            <div class="form-group">
+              <label for="proj-collab-end">Data de finalització *</label>
+              <input type="date" id="proj-collab-end" required />
+            </div>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label for="proj-collab-compensation">Remuneració</label>
+              <select id="proj-collab-compensation">
+                <option value="Academic collaboration">Col·laboració acadèmica</option>
+                <option value="Paid">Remunerada</option>
+                <option value="Negotiable">A concretar</option>
+                <option value="Unpaid">No remunerada</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="proj-collab-location">Modalitat</label>
+              <select id="proj-collab-location">
+                <option value="In person">Presencial</option>
+                <option value="Hybrid">Híbrida</option>
+                <option value="Remote">Remota</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="proj-collab-place">Ubicació</label>
+            <input type="text" id="proj-collab-place" placeholder="Ex.: ERAM, Girona" />
+          </div>
+          <div class="form-group">
+            <label for="proj-collab-transport">Transport</label>
+            <select id="proj-collab-transport">
+              <option value="">No especificat</option>
+              <option value="S'ofereix">S'ofereix</option>
+              <option value="No s'ofereix">No s'ofereix</option>
+              <option value="A concretar">A concretar</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="proj-collab-expenses">Dietes i despeses</label>
+            <select id="proj-collab-expenses">
+              <option value="No incloses">No incloses</option>
+              <option value="Cobertes">Cobertes</option>
+              <option value="A concretar">A concretar</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="proj-collab-details">Especificacions addicionals</label>
+            <textarea id="proj-collab-details" rows="3" placeholder="Indica tasques, dedicació, import orientatiu, dietes o altres condicions..."></textarea>
+          </div>
+        </section>
+
+        <!-- PAS 5: MATERIAL MULTIMÈDIA -->
+        <section data-project-step="5" hidden>
+          <div class="form-section-title">Material multimèdia</div>
           <div class="form-group">
             <label for="proj-media-url">Enllaç extern (Figma, Vimeo, Drive, YouTube...)</label>
             <input type="url" id="proj-media-url" placeholder="https://..." />
@@ -782,19 +880,6 @@
             <input type="file" id="proj-media-images" accept="image/*" multiple />
           </div>
           <div id="proj-media-images-preview" class="project-media-upload-grid"></div>
-        </section>
-
-        <!-- PAS 5: FEEDBACK -->
-        <section data-project-step="5" hidden>
-          <div class="form-section-title">5. Tipus de feedback que necessites</div>
-          <div class="form-group">
-            <label for="proj-feedback-type">En què vols que es fixin els companys? *</label>
-            <input type="text" id="proj-feedback-type" required placeholder="Ex: Composició tipogràfica, ritme del muntatge, usabilitat..." />
-          </div>
-          <div class="form-group">
-            <label for="proj-questions">Pregunta concreta per a la comunitat</label>
-            <textarea id="proj-questions" rows="2" placeholder="Ex: Funciona millor la versió en blanc i negre o la de color?"></textarea>
-          </div>
         </section>
 
         <div class="form-error hidden" id="proj-form-error" role="alert"></div>
@@ -999,6 +1084,29 @@
     </div>
   </div>
 
+  <!-- MODAL: LANGUAGE SETTINGS -->
+  <div class="modal-backdrop hidden" id="modal-settings" role="dialog" aria-modal="true" aria-labelledby="modal-settings-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="modal-settings-title">Configuració</h2>
+        <button type="button" class="modal-close-btn" data-close-modal="modal-settings" aria-label="Tancar">&times;</button>
+      </div>
+      <div class="modal-form">
+        <div class="form-group">
+          <label for="language-select">Idioma de la web</label>
+          <select id="language-select">
+            <option value="ca">Català</option>
+            <option value="en">English</option>
+          </select>
+          <small class="form-hint">El contingut escrit pels usuaris es mostrarà traduït quan sigui possible. Sempre podràs veure'n l'original. Els textos que es tradueixen s'envien a Google Cloud Translation.</small>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-primary" data-close-modal="modal-settings">Fet</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL: LEVELS & SUBJECT DETAILS -->
   <div class="modal-backdrop hidden" id="modal-levels" role="dialog" aria-modal="true" aria-labelledby="modal-levels-title">
     <div class="modal-card">
@@ -1023,6 +1131,24 @@
   <!-- TOAST NOTIFICATION CONTAINER -->
   <div id="toast-container" class="toast-container" aria-live="polite"></div>
 
+  <script>
+    history.scrollRestoration = "manual";
+    const savedRoute = sessionStorage.getItem("eram-active-route");
+    const savedRouteId = sessionStorage.getItem("eram-active-route-id");
+    const routeViews = {
+      discover: "view-discover",
+      project: "view-project-detail",
+      positions: "view-positions",
+      messages: "view-messages",
+      profile: "view-profile",
+      leaderboard: "view-leaderboard"
+    };
+    const savedView = routeViews[savedRoute];
+    if (savedView && (savedRoute !== "project" || savedRouteId)) {
+      document.querySelectorAll(".view-section").forEach((section) => section.classList.add("hidden"));
+      document.getElementById(savedView)?.classList.remove("hidden");
+    }
+  </script>
   <script type="module" src="script.js"></script>
 </body>
 </html>
