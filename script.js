@@ -682,6 +682,10 @@ import {
     onSnapshot(collection(db, "notifications"), (snap) => {
       state.notifications = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       updateHeaderChrome();
+      const chatMainPane = document.getElementById("chat-main-pane");
+      if (ui.route === "messages" && ui.activeConversationId && chatMainPane?.getClientRects().length) {
+        void markMessageNotificationsAsRead(ui.activeConversationId, state.currentUserId);
+      }
     });
     onSnapshot(collection(db, "pointsLedger"), (snap) => {
       state.pointsLedger = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -2150,12 +2154,15 @@ import {
   const typingIdleTimers = new Map();
   const typingLastUpdateAt = new Map();
 
-  function stopTypingIndicator(conversationId, userId) {
+  function clearLocalTypingState(conversationId) {
     const timer = typingIdleTimers.get(conversationId);
     if (timer) clearTimeout(timer);
     typingIdleTimers.delete(conversationId);
     typingLastUpdateAt.delete(conversationId);
+  }
 
+  function stopTypingIndicator(conversationId, userId) {
+    clearLocalTypingState(conversationId);
     updateDoc(doc(db, "conversations", conversationId), {
       [`typingUsers.${userId}`]: deleteField()
     }).catch((error) => {
@@ -2275,8 +2282,8 @@ import {
     });
   }
 
-  function getConversationMessagesMarkup(messages, currentUser) {
-    return messages
+  function getConversationMessagesMarkup(messages, currentUser, showTypingIndicator = false, typingAt = 0) {
+    const messageMarkup = messages
       .map((message) => {
         const isOutgoing = message.senderId === currentUser.id;
         return `
@@ -2299,22 +2306,28 @@ import {
         `;
       })
       .join("");
+
+    const typingMarkup = showTypingIndicator
+      ? `<div class="msg-bubble incoming typing-indicator" id="chat-typing-indicator" data-typing-at="${typingAt}" role="status" aria-label="L'altra persona està escrivint">
+          <span class="typing-dot" aria-hidden="true"></span>
+          <span class="typing-dot" aria-hidden="true"></span>
+          <span class="typing-dot" aria-hidden="true"></span>
+        </div>`
+      : "";
+
+    return messageMarkup + typingMarkup;
   }
 
-  function refreshTypingStatusElement(element, conversationId, typingAt) {
-    if (!element) return;
-    element.dataset.typingAt = String(typingAt);
-    const isTyping = typingAt > 0 && Date.now() - typingAt < 5000;
-    element.textContent = isTyping ? "Està escrivint..." : "";
-    if (!isTyping) return;
-
+  function scheduleTypingIndicatorExpiry(conversationId, typingAt) {
+    if (typingAt <= 0 || Date.now() - typingAt >= 5000) return;
     setTimeout(() => {
-      const currentStatus = document.getElementById("chat-typing-status");
+      const currentIndicator = document.getElementById("chat-typing-indicator");
       if (
         ui.activeConversationId === conversationId &&
-        currentStatus?.dataset.typingAt === String(typingAt)
+        currentIndicator?.dataset.typingAt === String(typingAt) &&
+        Date.now() - typingAt >= 5000
       ) {
-        currentStatus.textContent = "";
+        currentIndicator.remove();
       }
     }, Math.max(0, 5000 - (Date.now() - typingAt)));
   }
@@ -2346,19 +2359,21 @@ import {
     listContainer.innerHTML = getConversationListMarkup(myConvs, currentUser, filterQ);
     bindConversationList(listContainer);
 
+    const otherId = activeConv.participantIds.find((id) => id !== currentUser.id);
+    const typingAt = Number(activeConv.typingUsers?.[otherId] || 0);
+    const isOtherTyping = typingAt > 0 && Date.now() - typingAt < 5000;
     const scrollBox = document.getElementById("chat-messages-scroll");
     if (scrollBox) {
       const wasNearBottom = scrollBox.scrollHeight - scrollBox.scrollTop - scrollBox.clientHeight < 48;
       const messages = Array.isArray(activeConv.messages) ? activeConv.messages : [];
-      scrollBox.innerHTML = getConversationMessagesMarkup(messages, currentUser);
+      scrollBox.innerHTML = getConversationMessagesMarkup(messages, currentUser, isOtherTyping, typingAt);
+      if (isOtherTyping) scheduleTypingIndicatorExpiry(activeConv.id, typingAt);
       if (wasNearBottom) scrollBox.scrollTop = scrollBox.scrollHeight;
     }
 
-    const otherId = activeConv.participantIds.find((id) => id !== currentUser.id);
-    const typingAt = Number(activeConv.typingUsers?.[otherId] || 0);
-    refreshTypingStatusElement(document.getElementById("chat-typing-status"), activeConv.id, typingAt);
     if (mainPane.getClientRects().length > 0) {
       void markConversationMessagesRead(activeConv, currentUser.id);
+      void markMessageNotificationsAsRead(activeConv.id, currentUser.id);
     }
   }
 
@@ -2393,11 +2408,13 @@ import {
     ui.activeConversationId = activeConv.id;
     if (mainPane.getClientRects().length > 0) {
       void markConversationMessagesRead(activeConv, currentUser.id);
+      void markMessageNotificationsAsRead(activeConv.id, currentUser.id);
     }
     const otherId = activeConv.participantIds.find((id) => id !== currentUser.id);
     const other = getStudentById(otherId);
     const messages = Array.isArray(activeConv.messages) ? activeConv.messages : [];
     const otherTypingAt = Number(activeConv.typingUsers?.[otherId] || 0);
+    const isOtherTyping = otherTypingAt > 0 && Date.now() - otherTypingAt < 5000;
 
     mainPane.innerHTML = `
       <div class="chat-header">
@@ -2407,14 +2424,13 @@ import {
           <div>
             <strong style="display:block;font-size:14px;">${escapeHtml(other.name)}</strong>
             <span style="font-size: 11.5px;color:var(--text-secondary);">${escapeHtml(other.year)} · ${escapeHtml(other.email)}</span>
-            <span class="chat-typing-status" id="chat-typing-status" data-typing-at="${otherTypingAt}" aria-live="polite"></span>
           </div>
         </div>
         <button type="button" class="chip-action-btn" data-open-profile="${other.id}">Veure portafoli</button>
       </div>
 
       <div class="chat-messages-scroll" id="chat-messages-scroll">
-        ${getConversationMessagesMarkup(messages, currentUser)}
+        ${getConversationMessagesMarkup(messages, currentUser, isOtherTyping, otherTypingAt)}
       </div>
 
       ${
@@ -2433,6 +2449,7 @@ import {
         <button type="submit" class="btn-primary">Enviar</button>
       </form>
     `;
+    if (isOtherTyping) scheduleTypingIndicatorExpiry(activeConv.id, otherTypingAt);
 
     const messageInput = document.getElementById("chat-message-input");
     messageInput.value = conversationDrafts.get(activeConv.id) || "";
@@ -2450,8 +2467,6 @@ import {
         stopTypingIndicator(activeConv.id, currentUser.id);
       }
     });
-    refreshTypingStatusElement(document.getElementById("chat-typing-status"), activeConv.id, otherTypingAt);
-
     const backBtn = document.getElementById("mobile-chat-back-btn");
     if (backBtn) {
       backBtn.addEventListener("click", () => {
@@ -2494,7 +2509,10 @@ import {
             throw new Error(`No s'ha trobat la conversa ${activeConv.id}.`);
           }
           const currentMessages = Array.isArray(snapshot.data().messages) ? snapshot.data().messages : [];
-          transaction.update(conversationRef, { messages: [...currentMessages, newMessage] });
+          transaction.update(conversationRef, {
+            messages: [...currentMessages, newMessage],
+            [`typingUsers.${currentUser.id}`]: deleteField()
+          });
         });
       } catch (error) {
         console.warn("Error enviant el missatge privat:", error);
@@ -2504,7 +2522,7 @@ import {
 
       pendingMessageReference = null;
       conversationDrafts.set(activeConv.id, "");
-      stopTypingIndicator(activeConv.id, currentUser.id);
+      clearLocalTypingState(activeConv.id);
       input.value = "";
       document.getElementById("pending-message-reference")?.remove();
       try {
@@ -2757,6 +2775,41 @@ import {
     });
   }
 
+  const pendingMessageNotificationReads = new Set();
+
+  async function markMessageNotificationsAsRead(conversationId, userId) {
+    if (!conversationId || !userId) return;
+    const notifications = state.notifications.filter(
+      (notification) =>
+        notification.userId === userId &&
+        notification.linkType === "messages" &&
+        notification.linkId === conversationId &&
+        !notification.read &&
+        !pendingMessageNotificationReads.has(notification.id)
+    );
+    if (!notifications.length) return;
+
+    notifications.forEach((notification) => pendingMessageNotificationReads.add(notification.id));
+    try {
+      const results = await Promise.all(
+        notifications.map(async (notification) => {
+          try {
+            await updateDoc(doc(db, "notifications", notification.id), { read: true });
+            return true;
+          } catch (error) {
+            console.warn("Error marcant una notificació de missatge com a llegida:", error);
+            return false;
+          }
+        })
+      );
+      if (results.includes(false)) {
+        showToast("No s'han pogut actualitzar totes les notificacions del xat.");
+      }
+    } finally {
+      notifications.forEach((notification) => pendingMessageNotificationReads.delete(notification.id));
+    }
+  }
+
   function hasUnreadMessagesForUser(conversation, userId) {
     if (!Array.isArray(conversation.participantIds) || !conversation.participantIds.includes(userId)) {
       return false;
@@ -2788,8 +2841,8 @@ import {
       `;
     }
 
-    const myNotifs = state.notifications.filter((n) => n.userId === currentUser.id);
-    const unreadCount = myNotifs.filter((n) => !n.read).length;
+    const myNotifs = state.notifications.filter((n) => n.userId === currentUser.id && !n.read);
+    const unreadCount = myNotifs.length;
     const badgeEl = document.getElementById("notif-unread-count");
     if (badgeEl) {
       badgeEl.textContent = unreadCount;
@@ -2804,7 +2857,7 @@ import {
           : myNotifs
               .map(
                 (n) => `
-              <div class="notif-item ${n.read ? "" : "unread"}" data-notif-id="${n.id}" data-link-type="${n.linkType}" data-link-id="${n.linkId}">
+              <div class="notif-item unread" data-notif-id="${n.id}" data-link-type="${n.linkType}" data-link-id="${n.linkId}">
                 <div>${escapeHtml(n.text)}</div>
                 <span class="notif-time">${escapeHtml(n.time)}</span>
               </div>
@@ -2815,7 +2868,14 @@ import {
       listEl.querySelectorAll(".notif-item").forEach((item) => {
         item.addEventListener("click", async () => {
           const notif = state.notifications.find((n) => n.id === item.dataset.notifId);
-          if (notif) await updateDoc(doc(db, "notifications", notif.id), { read: true });
+          if (notif && !notif.read) {
+            try {
+              await updateDoc(doc(db, "notifications", notif.id), { read: true });
+            } catch (error) {
+              console.warn("Error marcant la notificació com a llegida:", error);
+              showToast("No s'ha pogut actualitzar la notificació.");
+            }
+          }
           closeAllPopovers();
           if (item.dataset.linkType === "project") navigateTo("project", item.dataset.linkId);
           else if (item.dataset.linkType === "messages") navigateTo("messages", item.dataset.linkId);
