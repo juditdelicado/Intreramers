@@ -310,9 +310,9 @@ import {
     return d.toISOString().split("T")[0];
   };
 
-  // ========================================================================
+  // =========================================================================
   // 1. DADES INICIALS DE MOSTRA (Es carreguen al núvol si la BD és buida)
-  // ========================================================================
+  // =========================================================================
   const INITIAL_STATE = {
     currentUserId: "stu-1",
     students: [
@@ -401,7 +401,7 @@ import {
         cover: "https://images.unsplash.com/photo-1485846234645-262644f84728?auto=format&fit=crop&w=900&q=80",
         description: "Curtmetratge documental d'observació sobre la vida quotidiana d'un barri, rodat amb llum natural i so ambient.",
         briefing: "Plans fixos llargs, entrevistes curtes i paisatge sonor enregistrat in situ.",
-        subject: "Direcció Cinematogràfica",
+        subject: "Direcció audiovisual",
         professor: "Dr. Marc Ferrer",
         year: "3r Curs",
         deadline: daysFromNow(3),
@@ -424,7 +424,7 @@ import {
         cover: "cartell tipografic.jpg",
         description: "Cartell tipogràfic per a un festival d'arts escèniques, basat en el contrast de tipografies i una paleta reduïda.",
         briefing: "Jerarquia clara, graella modular i lectura ràpida a distància.",
-        subject: "Disseny Editorial i Tipografia",
+        subject: "Projectes de disseny gràfic",
         professor: "Dra. Anna Rovira",
         year: "2n Curs",
         deadline: daysFromNow(6),
@@ -447,7 +447,7 @@ import {
         cover: "llum de paisatge.jpg",
         description: "Sèrie de 12 fotografies de paisatge en pel·lícula analògica, centrada en la llum natural a boscos i camps.",
         briefing: "Sense llum artificial; aprofitar l'hora blava i el gra natural.",
-        subject: "Fotografia Documental",
+        subject: "Fotografia",
         professor: "Prof. Jordi Casals",
         year: "1r Curs",
         deadline: daysFromNow(11),
@@ -470,7 +470,7 @@ import {
         cover: "disseny app musical.jpg",
         description: "Prototip d'una aplicació per crear música des del mòbil o la tauleta, amb controls tàctils senzills.",
         briefing: "Poca càrrega cognitiva i resposta visual immediata.",
-        subject: "Disseny d'Interfícies Interactives",
+        subject: "Disseny interactiu",
         professor: "Prof. Oriol Soler",
         year: "4t Curs (TFG)",
         deadline: daysFromNow(4),
@@ -493,7 +493,7 @@ import {
         cover: "escenari disseny 3d.jpg",
         description: "Escenari 3D en temps real d'un edifici abandonat, amb il·luminació atmosfèrica i textures de formigó.",
         briefing: "Estudi de llum volumètrica i materials desgastats.",
-        subject: "Creació d'Entorns 3D",
+        subject: "3D I",
         professor: "Prof. Sergi Pujol",
         year: "3r Curs",
         deadline: daysFromNow(9),
@@ -556,7 +556,7 @@ import {
         duration: "3 setmanes (2 dies de rodatge + mescla)",
         location: "In person",
         projectType: "Academic",
-        subject: "Direcció Cinematogràfica",
+        subject: "Direcció audiovisual",
         year: "3r Curs",
         description: "Busquem un/a estudiant amb interès en enregistrament de camp (Zoom F6 / micròfon direccional) i postproducció sonora en Pro Tools o Reaper.",
         ownerId: "stu-1",
@@ -582,9 +582,9 @@ import {
     pointsLedger: []
   };
 
-  // ========================================================================
+  // =========================================================================
   // 2. HELPERS DE SINCRONITZACIÓ AMB FIRESTORE I STORAGE
-  // ========================================================================
+  // =========================================================================
   function compressDataUrl(dataUrl, maxWidth = 900, quality = 0.72) {
     return new Promise((resolve) => {
       const img = new Image();
@@ -609,7 +609,6 @@ import {
     try {
       const fileName = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
       const storageRef = ref(storage, fileName);
-      // Timeout de 4 segons perquè no es quedi penjat si Firebase Storage no està activat
       const uploadPromise = (async () => {
         await uploadString(storageRef, dataUrl, "data_url");
         return await getDownloadURL(storageRef);
@@ -660,33 +659,27 @@ import {
       state.students = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       refreshCurrentRoute();
     });
-
     onSnapshot(collection(db, "projects"), (snap) => {
       state.projects = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       populateDynamicFilterOptions();
       refreshCurrentRoute();
     });
-
     onSnapshot(collection(db, "comments"), (snap) => {
       state.comments = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       refreshCurrentRoute();
     });
-
     onSnapshot(collection(db, "positions"), (snap) => {
       state.positions = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       refreshCurrentRoute();
     });
-
     onSnapshot(collection(db, "conversations"), (snap) => {
       state.conversations = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       if (ui.route === "messages") renderMessagesView();
     });
-
     onSnapshot(collection(db, "notifications"), (snap) => {
       state.notifications = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       updateHeaderChrome();
     });
-
     onSnapshot(collection(db, "pointsLedger"), (snap) => {
       state.pointsLedger = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       if (ui.route === "leaderboard") renderLeaderboardView();
@@ -708,9 +701,9 @@ import {
     return project.coverFramed === true || /^data:image\//i.test(project.cover || "");
   }
 
-  // ========================================================================
-  // 3. UI FILTERS & ROUTING STATE
-  // ========================================================================
+  // =========================================================================
+  // 3. UI FILTERS, CROPPER & WIZARD STATE
+  // =========================================================================
   let uploadedProjectCover = "";
   let uploadedProjectMediaImages = [];
   let projectMediaUploadPending = false;
@@ -741,12 +734,11 @@ import {
 
   function setProjectWizardStep(step) {
     const labels = [
-      "Pas 1 de 6 · Nom",
-      "Pas 2 de 6 · Imatge",
-      "Pas 3 de 6 · Descripció",
-      "Pas 4 de 6 · Context acadèmic",
-      "Pas 5 de 6 · Multimèdia",
-      "Pas 6 de 6 · Feedback"
+      "Pas 1 de 5 · Portada i dades principals",
+      "Pas 2 de 5 · Descripció i briefing",
+      "Pas 3 de 5 · Context acadèmic i equip",
+      "Pas 4 de 5 · Material multimèdia",
+      "Pas 5 de 5 · Feedback"
     ];
     const lastStep = labels.length;
     projectWizardStep = Math.max(1, Math.min(lastStep, step));
@@ -779,14 +771,7 @@ import {
     const error = document.getElementById("proj-form-error");
     error.classList.add("hidden");
 
-    if (projectWizardStep === 1 && !document.getElementById("proj-title").value.trim()) {
-      error.textContent = "Escriu el nom del projecte per continuar.";
-      error.classList.remove("hidden");
-      document.getElementById("proj-title").focus();
-      return;
-    }
-
-    if (projectWizardStep === 2) {
+    if (projectWizardStep === 1) {
       if (projectCrop.source && !projectCrop.image) {
         error.textContent = projectCrop.loading
           ? "Espera que la imatge s'acabi de carregar."
@@ -801,16 +786,45 @@ import {
           projectCrop.dirty = false;
           projectCrop.framed = true;
         } catch (err) {
-          error.textContent = err.name === "SecurityError"
-            ? "Aquest servidor no permet retallar imatges d'aquesta URL. Selecciona la imatge des del teu ordinador."
-            : "No s'ha pogut processar la imatge. Torna-ho a provar.";
+          error.textContent =
+            err.name === "SecurityError"
+              ? "Aquest servidor no permet retallar imatges d'aquesta URL. Selecciona la imatge des del teu ordinador."
+              : "No s'ha pogut processar la imatge. Torna-ho a provar.";
           error.classList.remove("hidden");
           return;
         }
       }
+
+      if (!document.getElementById("proj-title").value.trim()) {
+        error.textContent = "Escriu el títol del projecte per continuar.";
+        error.classList.remove("hidden");
+        document.getElementById("proj-title").focus();
+        return;
+      }
+
+      if (!document.getElementById("proj-deadline").value) {
+        error.textContent = "Selecciona la data d'entrega per continuar.";
+        error.classList.remove("hidden");
+        document.getElementById("proj-deadline").focus();
+        return;
+      }
+
+      if (!document.getElementById("proj-subject").value.trim()) {
+        error.textContent = "Indica l'assignatura del projecte per continuar.";
+        error.classList.remove("hidden");
+        document.getElementById("proj-subject").focus();
+        return;
+      }
+
+      if (!document.getElementById("proj-professor").value.trim()) {
+        error.textContent = "Indica el nom del professor/a per continuar.";
+        error.classList.remove("hidden");
+        document.getElementById("proj-professor").focus();
+        return;
+      }
     }
 
-    if (projectWizardStep === 3) {
+    if (projectWizardStep === 2) {
       if (!document.getElementById("proj-description").value.trim()) {
         error.textContent = "Escriu la descripció del projecte per continuar.";
         error.classList.remove("hidden");
@@ -821,27 +835,6 @@ import {
         error.textContent = "Escriu els objectius i requisits del briefing per continuar.";
         error.classList.remove("hidden");
         document.getElementById("proj-briefing").focus();
-        return;
-      }
-    }
-
-    if (projectWizardStep === 4) {
-      if (!document.getElementById("proj-subject").value.trim()) {
-        error.textContent = "Indica l'assignatura del projecte per continuar.";
-        error.classList.remove("hidden");
-        document.getElementById("proj-subject").focus();
-        return;
-      }
-      if (!document.getElementById("proj-professor").value.trim()) {
-        error.textContent = "Indica el nom del professor/a per continuar.";
-        error.classList.remove("hidden");
-        document.getElementById("proj-professor").focus();
-        return;
-      }
-      if (!document.getElementById("proj-deadline").value) {
-        error.textContent = "Selecciona la data d'entrega per continuar.";
-        error.classList.remove("hidden");
-        document.getElementById("proj-deadline").focus();
         return;
       }
     }
@@ -870,15 +863,15 @@ import {
     const preview = document.getElementById("proj-media-images-preview");
     if (!preview) return;
     preview.innerHTML = uploadedProjectMediaImages
-      .map((image) => `
+      .map(
+        (image) => `
         <div class="project-media-upload-card">
           <img src="${escapeHtml(image.src)}" alt="${escapeHtml(image.name)}" />
           <span>${escapeHtml(image.name)}</span>
           <button type="button" class="text-link-btn" data-remove-project-media="${escapeHtml(image.id)}" aria-label="Eliminar ${escapeHtml(image.name)}">&times;</button>
-        </div>
-      `)
+        </div>`
+      )
       .join("");
-
     preview.querySelectorAll("[data-remove-project-media]").forEach((button) => {
       button.addEventListener("click", () => {
         uploadedProjectMediaImages = uploadedProjectMediaImages.filter((image) => image.id !== button.dataset.removeProjectMedia);
@@ -929,6 +922,14 @@ import {
     error.classList.toggle("hidden", !message);
   }
 
+  function syncProjectAspectButtons(aspectValue) {
+    const input = document.getElementById("proj-aspect");
+    if (input) input.value = aspectValue;
+    document.querySelectorAll("[data-aspect-choice]").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.aspectChoice === aspectValue);
+    });
+  }
+
   function drawProjectCrop() {
     const canvas = document.getElementById("proj-crop-canvas");
     const aspect = document.getElementById("proj-aspect")?.value || "portrait";
@@ -965,6 +966,7 @@ import {
 
   function setProjectCropSource(source, { dirty = true, framed = false } = {}) {
     const cropper = document.getElementById("proj-cropper");
+    const placeholder = document.getElementById("proj-cover-placeholder");
     const zoomControl = document.getElementById("proj-crop-zoom");
 
     projectCrop.image = null;
@@ -979,7 +981,9 @@ import {
 
     if (zoomControl) zoomControl.value = "1";
     if (cropper) cropper.classList.toggle("hidden", !source);
+    if (placeholder) placeholder.classList.toggle("hidden", Boolean(source));
     showProjectCropError("");
+
     if (!source) return;
 
     const image = new Image();
@@ -1005,7 +1009,7 @@ import {
     selectedCategory: "General",
     searchQuery: "",
     sortBy: "recent",
-    visibleCount: 12,
+    visibleCount: 15,
     filters: {
       subject: "",
       professor: "",
@@ -1026,9 +1030,9 @@ import {
     }
   };
 
-  // ========================================================================
+  // =========================================================================
   // 4. REPUTACIÓ, NIVELLS I ALGORISME DE VISIBILITAT
-  // ========================================================================
+  // =========================================================================
   function getCurrentUser() {
     return (
       state.students.find((s) => s.id === state.currentUserId) || {
@@ -1124,21 +1128,16 @@ import {
     const ageDays = Math.max(0, -getDaysUntilDeadline(project.createdAt));
     const freshnessScore = Math.max(0, 1 - ageDays / 21);
 
-    return (
-      urgencyScore * 0.4 +
-      repScore * 0.3 +
-      feedbackNeedScore * 0.2 +
-      freshnessScore * 0.1
-    );
+    return urgencyScore * 0.4 + repScore * 0.3 + feedbackNeedScore * 0.2 + freshnessScore * 0.1;
   }
 
-  // ========================================================================
+  // =========================================================================
   // 5. NAVEGACIÓ I ROUTER
-  // ========================================================================
+  // =========================================================================
   function resetDiscoveryFilters() {
     ui.selectedCategory = "General";
     ui.searchQuery = "";
-    ui.visibleCount = 12;
+    ui.visibleCount = 15;
     ui.filters = { subject: "", professor: "", year: "", stage: "", teamType: "", status: "active", urgentOnly: false };
 
     const searchInput = document.getElementById("global-search-input");
@@ -1197,9 +1196,9 @@ import {
     if (route === "leaderboard") renderLeaderboardView();
   }
 
-  // ========================================================================
-  // 6. HOMEPAGE — DESCOBRIMENT DE PROJECTES
-  // ========================================================================
+  // =========================================================================
+  // 6. HOMEPAGE - DESCOBRIMENT DE PROJECTES
+  // =========================================================================
   function populateDynamicFilterOptions() {
     const subjects = [...new Set(state.projects.map((p) => p.subject).filter(Boolean))];
     const professors = [...new Set(state.projects.map((p) => p.professor).filter(Boolean))];
@@ -1214,6 +1213,7 @@ import {
         subjects.map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("");
       subSel.value = prev;
     }
+
     if (profSel) {
       const prev = profSel.value;
       profSel.innerHTML =
@@ -1228,16 +1228,11 @@ import {
     let list = state.projects.filter((proj) => {
       const owner = getStudentById(proj.ownerId);
       if (proj.archived) return false;
-
-      if (ui.selectedCategory !== "General" && proj.category !== ui.selectedCategory) {
-        return false;
-      }
-
+      if (ui.selectedCategory !== "General" && proj.category !== ui.selectedCategory) return false;
       if (ui.filters.status === "active" && proj.status !== "In progress") return false;
       if (ui.filters.status !== "active" && ui.filters.status !== "all" && proj.status !== ui.filters.status) {
         return false;
       }
-
       if (ui.filters.subject && proj.subject !== ui.filters.subject) return false;
       if (ui.filters.professor && proj.professor !== ui.filters.professor) return false;
       if (ui.filters.year && proj.year !== ui.filters.year) return false;
@@ -1259,7 +1254,6 @@ import {
           .toLowerCase();
         if (!haystack.includes(q)) return false;
       }
-
       return true;
     });
 
@@ -1305,7 +1299,6 @@ import {
 
   function renderDiscoverView() {
     updateActiveFilterBadge();
-
     const activeCategoryLabel = document.getElementById("active-category-label");
     if (activeCategoryLabel) {
       activeCategoryLabel.textContent = ui.filters.urgentOnly ? "Prioritaris" : ui.selectedCategory;
@@ -1358,9 +1351,9 @@ import {
       .join("");
   }
 
-  // ========================================================================
+  // =========================================================================
   // 7. DETALL DEL PROJECTE I FEEDBACK ENTRE IGUALS
-  // ========================================================================
+  // =========================================================================
   const STAGE_LABELS = {
     "Initial idea": "1. Idea inicial",
     "Research and references": "2. Recerca i referències",
@@ -1389,6 +1382,7 @@ import {
     const currentUser = getCurrentUser();
     const isOwner = proj.ownerId === currentUser.id;
     const projectComments = state.comments.filter((c) => c.projectId === proj.id);
+
     const projectMediaImages = (Array.isArray(proj.mediaImages) ? proj.mediaImages : [])
       .filter((image) => image && image.id && image.src);
 
@@ -1421,24 +1415,34 @@ import {
       wideProjectMediaImages.push(projectMediaColumns[0].pop() || projectMediaColumns[1].pop());
     }
 
-    const projectMediaGridColumns = projectMediaColumnHeights[0] > 0 && projectMediaColumnHeights[1] > 0
-      ? `${projectMediaColumnHeights[1]}fr ${projectMediaColumnHeights[0]}fr`
-      : "1fr 1fr";
+    const projectMediaGridColumns =
+      projectMediaColumnHeights[0] > 0 && projectMediaColumnHeights[1] > 0
+        ? `${projectMediaColumnHeights[1]}fr ${projectMediaColumnHeights[0]}fr`
+        : "1fr 1fr";
 
-    const projectParticipants = [...new Set([owner.name, ...(Array.isArray(proj.participants) ? proj.participants : []).filter(Boolean)])];
-    const projectParticipantsMarkup = projectParticipants.map((name) => {
-      const participant = state.students.find((student) => student.name === name);
-      const initials = name.split(/\s+/).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase();
-      const avatar = participant?.avatar
-        ? `<img src="${escapeHtml(participant.avatar)}" alt="" />`
-        : `<span class="detail-participant-initials" aria-hidden="true">${escapeHtml(initials)}</span>`;
-      const role = name === owner.name ? "Autor/a" : "Participant";
-      const content = `${avatar}<span class="detail-participant-name">${escapeHtml(name)}<small>${role}</small></span>`;
+    const projectParticipants = [
+      ...new Set([owner.name, ...(Array.isArray(proj.participants) ? proj.participants : []).filter(Boolean)])
+    ];
 
-      return participant
-        ? `<button type="button" class="detail-participant" data-open-profile="${escapeHtml(participant.id)}">${content}</button>`
-        : `<div class="detail-participant">${content}</div>`;
-    }).join("");
+    const projectParticipantsMarkup = projectParticipants
+      .map((name) => {
+        const participant = state.students.find((student) => student.name === name);
+        const initials = name
+          .split(/\s+/)
+          .slice(0, 2)
+          .map((part) => part[0] || "")
+          .join("")
+          .toUpperCase();
+        const avatar = participant?.avatar
+          ? `<img src="${escapeHtml(participant.avatar)}" alt="" />`
+          : `<span class="detail-participant-initials" aria-hidden="true">${escapeHtml(initials)}</span>`;
+        const role = name === owner.name ? "Autor/a" : "Participant";
+        const content = `${avatar}<span class="detail-participant-name">${escapeHtml(name)}<small>${role}</small></span>`;
+        return participant
+          ? `<button type="button" class="detail-participant" data-open-profile="${escapeHtml(participant.id)}">${content}</button>`
+          : `<div class="detail-participant">${content}</div>`;
+      })
+      .join("");
 
     const projectAspectRatios = {
       portrait: "3/4",
@@ -1458,7 +1462,9 @@ import {
       proj.professor && `<div><span>Professor/a</span><strong>${escapeHtml(proj.professor)}</strong></div>`,
       proj.year && `<div><span>Curs acadèmic</span><strong>${escapeHtml(proj.year)}</strong></div>`,
       proj.deadline && `<div><span>Data límit</span><strong>${escapeHtml(proj.deadline)}</strong></div>`
-    ].filter(Boolean).join("");
+    ]
+      .filter(Boolean)
+      .join("");
 
     container.innerHTML = `
       <div class="page-container project-detail-page">
@@ -1470,21 +1476,32 @@ import {
           <div class="detail-layout">
             <div class="project-gallery-column">
               <div class="project-gallery-stack" aria-label="Galeria d'imatges del projecte">
-                <figure class="project-gallery-frame project-gallery-cover ${isProjectCoverFramed(proj) ? "framed-cover" : ""}" style="--project-gallery-ratio:${coverAspectRatio}">
+                <figure class="project-gallery-frame project-gallery-cover ${isProjectCoverFramed(proj) ? "framed-cover" : ""}" style="--project-gallery-ratio: ${coverAspectRatio}">
                   <img src="${escapeHtml(proj.cover)}" alt="${escapeHtml(proj.title)}" />
                 </figure>
-                ${projectMediaImages.length ? `
-                  <div class="project-gallery-secondary">
-                    ${projectMediaColumns.some((column) => column.length) ? `
-                      <div class="project-gallery-mosaic" style="grid-template-columns: ${projectMediaGridColumns}">
-                        ${projectMediaColumns.map((column) => `
-                          <div class="project-gallery-mosaic-column">${column.map(projectMediaImageMarkup).join("")}</div>
-                        `).join("")}
-                      </div>
-                    ` : ""}
-                    ${wideProjectMediaImages.length ? `<div class="project-gallery-wide-stack">${wideProjectMediaImages.map(projectMediaImageMarkup).join("")}</div>` : ""}
-                  </div>
-                ` : ""}
+                ${
+                  projectMediaImages.length
+                    ? `<div class="project-gallery-secondary">
+                        ${
+                          projectMediaColumns.some((column) => column.length)
+                            ? `<div class="project-gallery-mosaic" style="grid-template-columns: ${projectMediaGridColumns}">
+                                ${projectMediaColumns
+                                  .map(
+                                    (column) =>
+                                      `<div class="project-gallery-mosaic-column">${column.map(projectMediaImageMarkup).join("")}</div>`
+                                  )
+                                  .join("")}
+                              </div>`
+                            : ""
+                        }
+                        ${
+                          wideProjectMediaImages.length
+                            ? `<div class="project-gallery-wide-stack">${wideProjectMediaImages.map(projectMediaImageMarkup).join("")}</div>`
+                            : ""
+                        }
+                      </div>`
+                    : ""
+                }
               </div>
             </div>
 
@@ -1493,7 +1510,7 @@ import {
                 <div class="detail-project-badges">
                   <span class="pill-tag">${escapeHtml(proj.category)}</span>
                   ${proj.stage ? `<span class="pill-tag">${escapeHtml(STAGE_LABELS[proj.stage] || proj.stage)}</span>` : ""}
-                  ${!isOwner ? `<span class="pill-tag ${proj.status === "In progress" ? "" : "success"}">${escapeHtml(proj.status)}</span>` : ""}
+                  ${isOwner ? `<span class="pill-tag ${proj.status === "In progress" ? "" : "success"}">${escapeHtml(proj.status)}</span>` : ""}
                 </div>
               </div>
 
@@ -1511,33 +1528,39 @@ import {
                 <div><span>Modalitat</span><strong>${proj.teamType === "group" ? "Treball en grup" : "Individual"}</strong></div>
               </div>
 
-              ${proj.briefing || proj.feedbackType || proj.questions ? `
-                <details class="detail-project-notes">
-                  <summary>Briefing i feedback buscat</summary>
-                  ${proj.briefing ? `<p><strong>Objectius:</strong> ${escapeHtml(proj.briefing)}</p>` : ""}
-                  ${proj.feedbackType ? `<p><strong>Feedback:</strong> ${escapeHtml(proj.feedbackType)}</p>` : ""}
-                  ${proj.questions ? `<p><strong>Pregunta:</strong> ${escapeHtml(proj.questions)}</p>` : ""}
-                </details>
-              ` : ""}
+              ${
+                proj.briefing || proj.feedbackType || proj.questions
+                  ? `<details class="detail-project-notes">
+                      <summary>Briefing i feedback buscat</summary>
+                      ${proj.briefing ? `<p><strong>Objectius:</strong> ${escapeHtml(proj.briefing)}</p>` : ""}
+                      ${proj.feedbackType ? `<p><strong>Feedback:</strong> ${escapeHtml(proj.feedbackType)}</p>` : ""}
+                      ${proj.questions ? `<p><strong>Pregunta:</strong> ${escapeHtml(proj.questions)}</p>` : ""}
+                    </details>`
+                  : ""
+              }
 
-              ${proj.teamType === "group" && proj.seekingCollaborator ? `
-                <div class="detail-collaborator-request">
-                  <div><span>Es busca col·laboració</span><strong>${escapeHtml(proj.collaboratorRole || "Rol per concretar")}</strong></div>
-                  <button type="button" class="btn-secondary" data-contact-owner="${escapeHtml(owner.id)}">Contactar</button>
-                </div>
-              ` : ""}
+              ${
+                proj.teamType === "group" && proj.seekingCollaborator
+                  ? `<div class="detail-collaborator-request">
+                      <div><span>Es busca col·laboració</span><strong>${escapeHtml(proj.collaboratorRole || "Rol per concretar")}</strong></div>
+                      <button type="button" class="btn-secondary" data-contact-owner="${escapeHtml(owner.id)}">Contactar</button>
+                    </div>`
+                  : ""
+              }
 
               ${proj.mediaUrl ? `<a href="${escapeHtml(proj.mediaUrl)}" target="_blank" rel="noopener" class="detail-media-link">Obrir material multimèdia &nearr;</a>` : ""}
 
               <div class="detail-project-actions">
-                ${isOwner ? `
-                  <button type="button" class="btn-secondary-pill" id="edit-project-btn">Editar projecte</button>
-                  <select id="owner-status-select" class="pill-select" aria-label="Canviar estat del projecte">
-                    <option value="In progress" ${proj.status === "In progress" ? "selected" : ""}>En curs</option>
-                    <option value="Submitted" ${proj.status === "Submitted" ? "selected" : ""}>Entregat (+5 pts)</option>
-                    <option value="Resolved" ${proj.status === "Resolved" ? "selected" : ""}>Resolt (+5 pts)</option>
-                  </select>
-                ` : ""}
+                ${
+                  isOwner
+                    ? `<button type="button" class="btn-secondary-pill" id="edit-project-btn">Editar projecte</button>
+                       <select id="owner-status-select" class="pill-select" aria-label="Canviar estat del projecte">
+                         <option value="In progress" ${proj.status === "In progress" ? "selected" : ""}>En curs</option>
+                         <option value="Submitted" ${proj.status === "Submitted" ? "selected" : ""}>Entregat (+5 pts)</option>
+                         <option value="Resolved" ${proj.status === "Resolved" ? "selected" : ""}>Resolt (+5 pts)</option>
+                       </select>`
+                    : ""
+                }
                 <button type="button" class="btn-primary" id="detail-comment-action">Comentar</button>
               </div>
             </aside>
@@ -1556,17 +1579,23 @@ import {
 
           <form id="add-comment-form" class="comment-composer">
             <textarea id="new-comment-text" rows="3" placeholder="Escriu una crítica constructiva, suggeriment tècnic o referència útil (mínim 20 caràcters per obtenir punts)..." required></textarea>
-            ${projectMediaImages.length ? `
-              <input type="hidden" id="comment-photo-reference" value="" />
-              <div class="comment-photo-linking" id="comment-photo-linking" hidden>
-                <img id="comment-photo-reference-preview" alt="" />
-                <span id="comment-photo-reference-label"></span>
-                <button type="button" id="comment-photo-reference-clear">Treure</button>
-              </div>
-            ` : ""}
+            ${
+              projectMediaImages.length
+                ? `<input type="hidden" id="comment-photo-reference" value="" />
+                   <div class="comment-photo-linking" id="comment-photo-linking" hidden>
+                     <img id="comment-photo-reference-preview" alt="" />
+                     <span id="comment-photo-reference-label"></span>
+                     <button type="button" id="comment-photo-reference-clear">Treure</button>
+                   </div>`
+                : ""
+            }
             <div class="composer-footer">
               <span style="font-size:12px; color:var(--text-secondary);">
-                ${isOwner ? "Ets l'autor/a d'aquest projecte (pots valorar la utilitat dels comentaris d'1 a 5 estrelles)." : "Primer comentari: +15 pts · segon: +10 pts · tercer: +7 pts · a partir del quart: +5 pts."}
+                ${
+                  isOwner
+                    ? "Ets l'autor/a d'aquest projecte (pots valorar la utilitat dels comentaris d'1 a 5 estrelles)."
+                    : "Primer comentari: +15 pts · segon: +10 pts · tercer: +7 pts · a partir del quart: +5 pts."
+                }
               </span>
               <button type="submit" class="btn-primary">Publicar feedback</button>
             </div>
@@ -1575,25 +1604,29 @@ import {
           <div class="comment-list" id="project-comments-list"></div>
         </section>
 
-        ${complementaryInfo ? `
-          <section class="project-complementary-info" aria-label="Informació acadèmica complementària">
-            <h2>Informació complementària</h2>
-            <div>${complementaryInfo}</div>
-          </section>
-        ` : ""}
+        ${
+          complementaryInfo
+            ? `<section class="project-complementary-info" aria-label="Informació acadèmica complementària">
+                <h2>Informació complementària</h2>
+                <div>${complementaryInfo}</div>
+              </section>`
+            : ""
+        }
 
-        ${isOwner ? `
-          <section class="project-management-section" id="project-management-section" aria-label="Gestionar projecte">
-            <div>
-              <h2>Arxivar o eliminar el projecte</h2>
-              <p>Arxivar-lo el conservarà al teu perfil i l'amagarà de les llistes públiques. Eliminar-lo esborrarà també els comentaris.</p>
-            </div>
-            <div class="project-management-actions">
-              <button type="button" class="btn-secondary-pill" id="archive-project-btn">${proj.archived ? "Desarxivar projecte" : "Arxivar projecte"}</button>
-              <button type="button" class="project-delete-btn" id="delete-project-btn">Eliminar projecte</button>
-            </div>
-          </section>
-        ` : ""}
+        ${
+          isOwner
+            ? `<section class="project-management-section" id="project-management-section" aria-label="Gestionar projecte">
+                <div>
+                  <h2>Arxivar o eliminar el projecte</h2>
+                  <p>Arxivar-lo el conservarà al teu perfil i l'amagarà de les llistes públiques. Eliminar-lo esborrarà també els comentaris.</p>
+                </div>
+                <div class="project-management-actions">
+                  <button type="button" class="btn-secondary-pill" id="archive-project-btn">${proj.archived ? "Desarxivar projecte" : "Arxivar projecte"}</button>
+                  <button type="button" class="project-delete-btn" id="delete-project-btn">Eliminar projecte</button>
+                </div>
+              </section>`
+            : ""
+        }
       </div>
     `;
 
@@ -1609,24 +1642,20 @@ import {
       galleryStack.addEventListener("click", (event) => {
         const target = event.target;
         if (!(target instanceof Element)) return;
-
         const commentAction = target.closest("[data-comment-project-photo]");
         if (commentAction) {
           const imageId = commentAction.dataset.commentProjectPhoto;
           const image = projectMediaImages.find((projectImage) => projectImage.id === imageId);
           if (!image) return;
-
           document.getElementById("comment-photo-reference").value = image.id;
           document.getElementById("comment-photo-reference-preview").src = image.src;
           document.getElementById("comment-photo-reference-preview").alt = image.name || "Fotografia referenciada";
-          document.getElementById("comment-photo-reference-label").textContent =
-            `Comentari sobre: ${image.name || "Fotografia del projecte"}`;
+          document.getElementById("comment-photo-reference-label").textContent = `Comentari sobre: ${image.name || "Fotografia del projecte"}`;
           document.getElementById("comment-photo-linking").hidden = false;
           document.getElementById("project-comments-section").scrollIntoView({ behavior: "smooth", block: "start" });
           requestAnimationFrame(() => document.getElementById("new-comment-text").focus({ preventScroll: true }));
           return;
         }
-
         const photo = target.closest(".project-gallery-photo");
         if (!photo) return;
         galleryStack.querySelectorAll(".project-gallery-comment-action").forEach((button) => {
@@ -1681,9 +1710,11 @@ import {
         for (const c of relatedComments) {
           await deleteDoc(doc(db, "comments", c.id));
         }
-        await setDoc(doc(db, "students", owner.id), {
-          projectsCount: Math.max(0, (owner.projectsCount || 1) - 1)
-        }, { merge: true });
+        await setDoc(
+          doc(db, "students", owner.id),
+          { projectsCount: Math.max(0, (owner.projectsCount || 1) - 1) },
+          { merge: true }
+        );
         navigateTo("discover");
         showToast("Projecte eliminat.");
       });
@@ -1720,17 +1751,20 @@ import {
       await setDoc(doc(db, "comments", commentId), newComment);
 
       if (!isOwner && text.length >= 20) {
-        await setDoc(doc(db, "students", currentUser.id), {
-          commentsCount: (currentUser.commentsCount || 0) + 1
-        }, { merge: true });
-        const reward = priorCount === 0
-          ? COMMENT_REWARDS.first
-          : priorCount === 1
+        await setDoc(
+          doc(db, "students", currentUser.id),
+          { commentsCount: (currentUser.commentsCount || 0) + 1 },
+          { merge: true }
+        );
+        const reward =
+          priorCount === 0
+            ? COMMENT_REWARDS.first
+            : priorCount === 1
             ? COMMENT_REWARDS.second
             : priorCount === 2
-              ? COMMENT_REWARDS.third
-              : COMMENT_REWARDS.subsequent;
-        await awardPoints(currentUser.id, `comment-${commentId}`, reward, `Feedback nº ${priorCount + 1} a "${proj.title}"`);
+            ? COMMENT_REWARDS.third
+            : COMMENT_REWARDS.subsequent;
+        await awardPoints(currentUser.id, `comment-${commentId}`, reward, `Feedback nº${priorCount + 1} a "${proj.title}"`);
       }
 
       if (proj.ownerId !== currentUser.id) {
@@ -1794,12 +1828,14 @@ import {
               </div>
             </div>
             <p style="margin:0;font-size: 13.5px; line-height:1.55;">${escapeHtml(c.text)}</p>
-            ${referencedImage ? `
-              <button type="button" class="comment-photo-reference" data-open-project-photo="${escapeHtml(referencedImage.id)}" data-project-id="${escapeHtml(proj.id)}">
-                <img src="${escapeHtml(referencedImage.src)}" alt="${escapeHtml(referencedImage.name || "Fotografia referenciada")}" />
-                <span>Fotografia referenciada: <strong>${escapeHtml(referencedImage.name || "Fotografia del projecte")}</strong></span>
-              </button>
-            ` : ""}
+            ${
+              referencedImage
+                ? `<button type="button" class="comment-photo-reference" data-open-project-photo="${escapeHtml(referencedImage.id)}" data-project-id="${escapeHtml(proj.id)}">
+                    <img src="${escapeHtml(referencedImage.src)}" alt="${escapeHtml(referencedImage.name || "Fotografia referenciada")}" />
+                    <span>Fotografia referenciada: <strong>${escapeHtml(referencedImage.name || "Fotografia del projecte")}</strong></span>
+                  </button>`
+                : ""
+            }
             <div class="comment-actions">
               <div class="comment-btn-group">
                 <button type="button" class="chip-action-btn ${isSeconded ? "active" : ""}" data-second-comment="${c.id}">
@@ -1834,9 +1870,11 @@ import {
           secondedBy.push(currentUser.id);
           await updateDoc(doc(db, "comments", com.id), { secondedBy });
           const author = getStudentById(com.authorId);
-          await setDoc(doc(db, "students", com.authorId), {
-            secondedCount: (author.secondedCount || 0) + 1
-          }, { merge: true });
+          await setDoc(
+            doc(db, "students", com.authorId),
+            { secondedCount: (author.secondedCount || 0) + 1 },
+            { merge: true }
+          );
           await awardPoints(com.authorId, `second-${com.id}-${currentUser.id}`, 2, `Comentari secundat per ${currentUser.name}`);
           await pushNotification(com.authorId, `${currentUser.name} ha secundat el teu comentari a "${proj.title}"`, "project", proj.id);
         } else {
@@ -1854,9 +1892,11 @@ import {
         await updateDoc(doc(db, "comments", com.id), { usefulnessRating: stars });
         if (stars >= 4) {
           const author = getStudentById(com.authorId);
-          await setDoc(doc(db, "students", com.authorId), {
-            usefulCommentsCount: (author.usefulCommentsCount || 0) + 1
-          }, { merge: true });
+          await setDoc(
+            doc(db, "students", com.authorId),
+            { usefulCommentsCount: (author.usefulCommentsCount || 0) + 1 },
+            { merge: true }
+          );
           await awardPoints(com.authorId, `useful-${com.id}`, 5, `Comentari valorat amb ${stars}★ per ${currentUser.name}`);
         }
         await pushNotification(com.authorId, `${currentUser.name} ha valorat el teu feedback amb ${stars} estrelles`, "project", proj.id);
@@ -1877,9 +1917,9 @@ import {
     });
   }
 
-  // ========================================================================
+  // =========================================================================
   // 8. POSICIONS OBERTES I COL·LABORACIÓ
-  // ========================================================================
+  // =========================================================================
   function renderPositionsView() {
     const grid = document.getElementById("positions-list-grid");
     const currentUser = getCurrentUser();
@@ -1950,7 +1990,6 @@ import {
               </div>
               <p style="font-size: 13.5px; color:var(--text-secondary); margin:8px 0 0;">${escapeHtml(pos.description)}</p>
             </div>
-
             <div>
               <div class="position-card-footer">
                 <div style="display: flex; align-items:center; gap:8px; cursor:pointer;" data-open-profile="${owner.id}">
@@ -1965,14 +2004,13 @@ import {
                     pos.isProjectCollaboration
                       ? `<button type="button" class="btn-primary" data-open-project="${escapeHtml(pos.projectId)}">Veure projecte</button>`
                       : isOwner
-                        ? `<span class="pill-tag">${applications.length} candidatures</span>`
-                        : myApp
-                          ? `<span class="pill-tag success">Candidatura: ${escapeHtml(myApp.status)}</span>`
-                          : `<button type="button" class="btn-primary" data-apply-pos="${pos.id}">Presentar-me</button>`
+                      ? `<span class="pill-tag">${applications.length} candidatures</span>`
+                      : myApp
+                      ? `<span class="pill-tag success">Candidatura: ${escapeHtml(myApp.status)}</span>`
+                      : `<button type="button" class="btn-primary" data-apply-pos="${pos.id}">Presentar-me</button>`
                   }
                 </div>
               </div>
-
               ${
                 isOwner && applications.length > 0
                   ? `<div class="applicant-drawer">
@@ -2050,19 +2088,17 @@ import {
     if (!pos) return;
     const currentUser = getCurrentUser();
     const myProjects = state.projects.filter((p) => p.ownerId === currentUser.id);
-
     document.getElementById("apply-pos-id").value = pos.id;
     document.getElementById("apply-pos-summary").textContent = `${pos.title} · ${pos.projectTitle}`;
     document.getElementById("apply-portfolio-project").innerHTML =
       `<option value="">Cap projecte seleccionat</option>` +
       myProjects.map((p) => `<option value="${p.id}">${escapeHtml(p.title)}</option>`).join("");
-
     openModal("modal-apply-position");
   }
 
-  // ========================================================================
+  // =========================================================================
   // 9. MISSATGERIA PRIVADA EN TEMPS REAL
-  // ========================================================================
+  // =========================================================================
   let pendingMessageReference = null;
 
   async function startOrOpenConversation(otherStudentId, contextRef = null) {
@@ -2070,8 +2106,12 @@ import {
     if (!otherStudentId || otherStudentId === currentUser.id) return;
 
     let conv = state.conversations.find(
-      (c) => Array.isArray(c.participantIds) && c.participantIds.includes(currentUser.id) && c.participantIds.includes(otherStudentId)
+      (c) =>
+        Array.isArray(c.participantIds) &&
+        c.participantIds.includes(currentUser.id) &&
+        c.participantIds.includes(otherStudentId)
     );
+
     if (!conv) {
       const convId = "conv-" + Date.now();
       conv = {
@@ -2085,7 +2125,6 @@ import {
     pendingMessageReference = contextRef;
     ui.activeConversationId = conv.id;
     navigateTo("messages", conv.id);
-
     const shell = document.getElementById("chat-shell");
     if (shell) shell.classList.add("mobile-thread-open");
   }
@@ -2157,8 +2196,18 @@ import {
             const isOut = m.senderId === currentUser.id;
             return `
               <div class="msg-bubble ${isOut ? "outgoing" : "incoming"}">
-                ${m.ref ? `<div class="msg-context-ref" ${m.ref.id ? `data-open-project="${escapeHtml(m.ref.id)}"` : ""} ${m.ref.commentId ? `data-open-project-comment="${escapeHtml(m.ref.commentId)}"` : ""}>&#128206; ${escapeHtml(m.ref.label)}</div>` : ""}
-                ${m.ref?.mediaImageId ? `<button type="button" class="msg-context-photo-ref" data-open-project-photo="${escapeHtml(m.ref.mediaImageId)}" data-project-id="${escapeHtml(m.ref.id)}">&#128247; Foto: ${escapeHtml(m.ref.mediaImageLabel || "Fotografia del projecte")}</button>` : ""}
+                ${
+                  m.ref
+                    ? `<div class="msg-context-ref" ${m.ref.id ? `data-open-project="${escapeHtml(m.ref.id)}"` : ""} ${
+                        m.ref.commentId ? `data-open-project-comment="${escapeHtml(m.ref.commentId)}"` : ""
+                      }>&#128206; ${escapeHtml(m.ref.label)}</div>`
+                    : ""
+                }
+                ${
+                  m.ref?.mediaImageId
+                    ? `<button type="button" class="msg-context-photo-ref" data-open-project-photo="${escapeHtml(m.ref.mediaImageId)}" data-project-id="${escapeHtml(m.ref.id)}">&#128247; Foto: ${escapeHtml(m.ref.mediaImageLabel || "Fotografia del projecte")}</button>`
+                    : ""
+                }
                 <div>${escapeHtml(m.text)}</div>
                 <span class="msg-time">${escapeHtml(m.timestamp)}</span>
               </div>
@@ -2169,8 +2218,10 @@ import {
 
       ${
         pendingMessageReference
-          ? `<div style="padding:8px 16px;background:var(--bg-subtle); font-size:12px;display: flex; justify-content:space-between; align-items:center;">
-              <span>Referència adjunta: <strong>${escapeHtml(pendingMessageReference.label)}</strong>${pendingMessageReference.mediaImageLabel ? ` · Foto: ${escapeHtml(pendingMessageReference.mediaImageLabel)}` : ""}</span>
+          ? `<div style="padding:8px 16px;background: var(--bg-subtle); font-size:12px;display: flex; justify-content:space-between; align-items:center;">
+              <span>Referència adjunta: <strong>${escapeHtml(pendingMessageReference.label)}</strong>${
+              pendingMessageReference.mediaImageLabel ? ` · Foto: ${escapeHtml(pendingMessageReference.mediaImageLabel)}` : ""
+            }</span>
               <button type="button" class="text-link-btn" id="clear-msg-ref">Treure</button>
             </div>`
           : ""
@@ -2208,7 +2259,6 @@ import {
 
       const now = new Date();
       const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-
       const updatedMessages = [
         ...messages,
         {
@@ -2226,9 +2276,9 @@ import {
     });
   }
 
-  // ========================================================================
+  // =========================================================================
   // 10. PERFIL D'ESTUDIANT I RÀNQUING
-  // ========================================================================
+  // =========================================================================
   function renderProfileView() {
     const container = document.getElementById("view-profile");
     const student = getStudentById(ui.activeProfileId || state.currentUserId);
@@ -2250,12 +2300,14 @@ import {
         <div class="profile-hero">
           <div class="profile-avatar-editor">
             <img src="${escapeHtml(student.avatar)}" alt="${escapeHtml(student.name)}" class="profile-hero-avatar" id="profile-avatar-preview" />
-            ${student.id === state.currentUserId ? `
-              <input type="file" id="profile-avatar-upload" accept="image/*" hidden />
-              <button type="button" class="profile-avatar-upload" id="profile-edit-pencil" title="Canviar fotografia" aria-label="Canviar fotografia">
-                <span>Canviar fotografia</span>
-              </button>
-            ` : ""}
+            ${
+              student.id === state.currentUserId
+                ? `<input type="file" id="profile-avatar-upload" accept="image/*" hidden />
+                   <button type="button" class="profile-avatar-upload" id="profile-edit-pencil" title="Canviar fotografia" aria-label="Canviar fotografia">
+                     <span>Canviar fotografia</span>
+                   </button>`
+                : ""
+            }
           </div>
 
           <div>
@@ -2266,25 +2318,32 @@ import {
             </div>
             <p style="margin:4px 0 8px; color:var(--text-secondary);">${degreeLabel ? `${escapeHtml(degreeLabel)} · ` : ""}${escapeHtml(student.year)} · ${escapeHtml(student.email)}</p>
             <p style="margin:0 0 10px;font-size: 13.5px;">${escapeHtml(student.bio || "")}</p>
-            ${studentSubjects.length ? `
-              <details class="profile-subjects-dropdown">
-                <summary>Assignatures seleccionades (${studentSubjects.length})</summary>
-                <div class="profile-subject-panel">
-                  <div class="profile-subject-tags">
-                    ${studentSubjects.map((tag) => `<button type="button" class="pill-tag subject-tag" data-subject="${escapeHtml(tag)}" style="border:0;cursor:pointer;">${escapeHtml(tag)}</button>`).join("")}
-                  </div>
-                </div>
-              </details>
-            ` : ""}
-            ${student.id === state.currentUserId ? `
-              <div class="profile-edit-action">
-                <button type="button" class="profile-edit-link" id="open-profile-edit">Editar perfil</button>
-              </div>
-            ` : `
-              <div class="profile-edit-action">
-                <button type="button" class="btn-primary" id="message-student-btn">Enviar missatge privat</button>
-              </div>
-            `}
+            ${
+              studentSubjects.length
+                ? `<details class="profile-subjects-dropdown">
+                    <summary>Assignatures seleccionades (${studentSubjects.length})</summary>
+                    <div class="profile-subject-panel">
+                      <div class="profile-subject-tags">
+                        ${studentSubjects
+                          .map(
+                            (tag) =>
+                              `<button type="button" class="pill-tag subject-tag" data-subject="${escapeHtml(tag)}" style="border:0;cursor:pointer;">${escapeHtml(tag)}</button>`
+                          )
+                          .join("")}
+                      </div>
+                    </div>
+                  </details>`
+                : ""
+            }
+            ${
+              student.id === state.currentUserId
+                ? `<div class="profile-edit-action">
+                    <button type="button" class="profile-edit-link" id="open-profile-edit">Editar perfil</button>
+                  </div>`
+                : `<div class="profile-edit-action">
+                    <button type="button" class="btn-primary" id="message-student-btn">Enviar missatge privat</button>
+                  </div>`
+            }
           </div>
 
           <div>
@@ -2300,137 +2359,91 @@ import {
 
         <div class="stats-strip">
           <div class="stat-box"><strong>${studentProjects.length}</strong><span>Projectes publicats</span></div>
-          <div class="stat-box"><strong>${student.commentsCount || 0}</strong><span>Feedbacks aportats</span></div>
-          <div class="stat-box"><strong>${student.usefulCommentsCount || 0}</strong><span>Comentaris molt útils (4-5★)</span></div>
-          <div class="stat-box"><strong>${student.secondedCount || 0}</strong><span>Vegades secundat</span></div>
+          <div class="stat-box"><strong>${student.commentsCount || 0}</strong><span>Comentaris fets</span></div>
+          <div class="stat-box"><strong>${student.usefulCommentsCount || 0}</strong><span>Valorats molt útils</span></div>
+          <div class="stat-box"><strong>${student.secondedCount || 0}</strong><span>Cops secundat</span></div>
         </div>
 
-        <h2 style="font-size:18px;margin-bottom: 16px;">Portafoli acadèmic (${studentProjects.length})</h2>
+        <h2 style="font-size:18px;margin-bottom:14px;">Portafoli de projectes</h2>
         <div class="masonry-container" style="padding:0;">
           ${studentProjects
             .map(
               (proj) => `
-                <article class="masonry-card ${proj.aspect || "span-portrait"} ${isProjectCoverFramed(proj) ? "framed-cover" : ""}" data-open-project="${proj.id}">
-                  <img src="${escapeHtml(proj.cover)}" alt="${escapeHtml(proj.title)}" loading="lazy" />
-                  <div class="card-overlay">
-                    <div class="overlay-top">
-                      <span class="overlay-badge">${escapeHtml(proj.year)}</span>
-                      <span class="overlay-badge">${proj.archived ? "Arxivat" : escapeHtml(proj.status)}</span>
-                    </div>
-                    <div class="overlay-bottom">
-                      <h3>${escapeHtml(proj.title)}</h3>
-                      <div class="overlay-meta"><span>${escapeHtml(proj.subject)}</span></div>
-                    </div>
+              <article class="masonry-card ${proj.aspect || "span-portrait"} ${isProjectCoverFramed(proj) ? "framed-cover" : ""}" data-open-project="${proj.id}">
+                <img src="${escapeHtml(proj.cover)}" alt="${escapeHtml(proj.title)}" />
+                <div class="card-overlay" style="opacity:1;">
+                  <div class="overlay-top"><span class="overlay-badge">${escapeHtml(proj.category)}</span></div>
+                  <div class="overlay-bottom">
+                    <h3>${escapeHtml(proj.title)}</h3>
+                    <div class="overlay-meta"><span>${escapeHtml(proj.subject)}</span><span>${escapeHtml(proj.status)}</span></div>
                   </div>
-                </article>
-              `
+                </div>
+              </article>
+            `
             )
             .join("")}
         </div>
       </div>
     `;
 
-    container.querySelector("#message-student-btn")?.addEventListener("click", () => {
-      startOrOpenConversation(student.id);
-    });
+    const msgBtn = document.getElementById("message-student-btn");
+    if (msgBtn) {
+      msgBtn.addEventListener("click", () => startOrOpenConversation(student.id));
+    }
 
-    container.querySelector(".profile-ranking-link")?.addEventListener("click", () => navigateTo("leaderboard"));
+    const levelLink = container.querySelector(".profile-level-link");
+    if (levelLink) {
+      levelLink.addEventListener("click", () => openLevelsModal(student));
+    }
 
-    container.querySelector(".profile-level-link")?.addEventListener("click", () => {
-      document.getElementById("levels-content").innerHTML = `
-        <div class="form-section-title">Nivells i avantatges</div>
-        <p><strong>Nivell 1 - Iniciació (0-49 pts):</strong> 600 px màxim. Accés a participar i publicar projectes.</p>
-        <p><strong>Nivell 2 - Col·laborador (50-119 pts):</strong> 900 px màxim. Visibilitat ampliada i perfil actiu.</p>
-        <p><strong>Nivell 3 - Col·laborador avançat (120-199 pts):</strong> 1200 px màxim. Més visibilitat i opcions de col·laboració.</p>
-        <p><strong>Nivell 4 - Expert (200+ pts):</strong> 1600 px màxim. Reconeixement comunitari i màxima visibilitat.</p>
-      `;
-      openModal("modal-levels");
-    });
+    const rankingLink = container.querySelector(".profile-ranking-link");
+    if (rankingLink) {
+      rankingLink.addEventListener("click", () => navigateTo("leaderboard"));
+    }
 
     container.querySelectorAll(".subject-tag").forEach((tag) => {
-      tag.addEventListener("click", () => {
-        const subjectName = tag.dataset.subject;
-        const linkedProjects = state.projects.filter((project) =>
-          (project.subject || "").toLowerCase().includes(subjectName.toLowerCase())
-        );
+      tag.addEventListener("click", () => openSubjectModal(tag.dataset.subject));
+    });
 
-        document.getElementById("modal-subject-title").textContent = subjectName;
-        document.getElementById("subject-content").innerHTML = `
-          <p><strong>Descripció:</strong> Assignatura vinculada als treballs creatius i acadèmics d'ERAM.</p>
-          <div class="form-section-title">Projectes publicats</div>
-          ${
-            linkedProjects.length
-              ? linkedProjects
-                  .map(
-                    (project) => `
-                      <button type="button" class="subject-project-link" data-open-project="${project.id}" style="display:block; width: 100%; text-align:left;margin:6px 0;padding:10px;border:1px solid var(--border-light); border-radius:10px; background:#fff;">
-                        ${escapeHtml(project.title)}
-                      </button>
-                    `
-                  )
-                  .join("")
-              : "<p>No hi ha projectes vinculats encara.</p>"
+    const editPencil = document.getElementById("profile-edit-pencil");
+    const avatarInput = document.getElementById("profile-avatar-upload");
+    if (editPencil && avatarInput) {
+      editPencil.addEventListener("click", () => avatarInput.click());
+      avatarInput.addEventListener("change", () => {
+        const file = avatarInput.files?.[0];
+        if (!file || !file.type.startsWith("image/")) return;
+        const reader = new FileReader();
+        reader.onload = async () => {
+          if (typeof reader.result === "string") {
+            const uploadedUrl = await uploadDataUrlIfNeeded(reader.result, "avatars");
+            await setDoc(doc(db, "students", student.id), { avatar: uploadedUrl }, { merge: true });
+            showToast("Fotografia de perfil actualitzada.");
           }
-        `;
-        document.getElementById("subject-content").querySelectorAll("[data-open-project]").forEach((button) => {
-          button.addEventListener("click", () => {
-            closeModal("modal-subject");
-            navigateTo("project", button.dataset.openProject);
-          });
-        });
-        openModal("modal-subject");
+        };
+        reader.readAsDataURL(file);
       });
-    });
+    }
 
-    const openProfileEditor = () => {
-      const nameParts = student.name.split(" ");
-      document.getElementById("edit-profile-name").value = nameParts.shift() || "";
-      document.getElementById("edit-profile-surname").value = nameParts.join(" ");
-      document.getElementById("edit-profile-email").value = student.email;
-      document.getElementById("edit-profile-avatar-color").value = student.avatarColor || "#8f7cf6";
-      document.getElementById("edit-profile-password").value = "";
-      document.getElementById("edit-profile-password-confirm").value = "";
-      document.getElementById("edit-profile-subject-list").innerHTML = (student.interests || [])
-        .map(
-          (subject) => `
-            <span class="edit-profile-subject-item" data-edit-profile-subject="${escapeHtml(subject)}">
-              <span>${escapeHtml(subject)}</span>
-              <button type="button" data-remove-profile-subject aria-label="Elimina ${escapeHtml(subject)}">&times;</button>
-            </span>
-          `
-        )
-        .join("");
-
-      const subjectInput = document.getElementById("edit-profile-subject-input");
-      subjectInput.value = "";
-      subjectInput.dispatchEvent(new Event("input"));
-      openModal("modal-edit-profile");
-    };
-
-    container.querySelector("#open-profile-edit")?.addEventListener("click", openProfileEditor);
-
-    const avatarPicker = container.querySelector("#profile-avatar-upload");
-    container.querySelector("#profile-edit-pencil")?.addEventListener("click", () => avatarPicker?.click());
-    avatarPicker?.addEventListener("change", (event) => {
-      const file = event.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const avatarUrl = await uploadDataUrlIfNeeded(reader.result, "avatars");
-        await setDoc(doc(db, "students", student.id), { avatar: avatarUrl }, { merge: true });
-        showToast("Fotografia de perfil actualitzada.");
-      };
-      reader.readAsDataURL(file);
-    });
+    const openEditButton = document.getElementById("open-profile-edit");
+    if (openEditButton) {
+      openEditButton.addEventListener("click", () => openEditProfileModal(student));
+    }
   }
 
   function renderLeaderboardView() {
     const container = document.getElementById("leaderboard-content");
-    const sorted = [...state.students].sort((a, b) => (b.points || 0) - (a.points || 0));
     const currentUser = getCurrentUser();
-    const myLedger = state.pointsLedger.filter((item) => item.userId === currentUser.id).slice(0, 6);
+    const sorted = [...state.students].sort((a, b) => (b.points || 0) - (a.points || 0));
+    const recentLedger = state.pointsLedger.filter((l) => l.userId === currentUser.id).slice(-5).reverse();
 
     container.innerHTML = `
+      <div class="stats-strip">
+        <div class="stat-box"><strong>+15 pts</strong><span>Primer comentari útil en un projecte (+10 segon, +7 tercer, +5 següents)</span></div>
+        <div class="stat-box"><strong>+5 pts</strong><span>Comentari valorat amb 4-5&#9733; per l'autor/a</span></div>
+        <div class="stat-box"><strong>+2 pts</strong><span>Quan un altre estudiant secunda el teu feedback</span></div>
+        <div class="stat-box"><strong>+10 / +5 pts</strong><span>Publicar projecte i marcar-lo com a entregat o resolt</span></div>
+      </div>
+
       <div class="leaderboard-table-wrap">
         <table class="leaderboard-table">
           <thead>
@@ -2438,28 +2451,28 @@ import {
               <th>Posició</th>
               <th>Estudiant</th>
               <th>Curs</th>
-              <th>Nivell d'assoliment</th>
-              <th>Projectes</th>
-              <th>Feedbacks</th>
+              <th>Nivell assoliment</th>
+              <th>Feedback útil</th>
               <th>Punts</th>
             </tr>
           </thead>
           <tbody>
             ${sorted
-              .map((stu, index) => {
-                const tier = getAchievementTier(stu.points || 0);
+              .map((s, idx) => {
+                const tier = getAchievementTier(s.points || 0);
                 return `
-                  <tr style="cursor:pointer;" data-open-profile="${stu.id}">
-                    <td><strong>#${index + 1}</strong></td>
-                    <td style="display: flex; align-items: center; gap: 10px;">
-                      <img src="${escapeHtml(stu.avatar)}" alt="${escapeHtml(stu.name)}" class="nav-avatar" />
-                      <strong>${escapeHtml(stu.name)}</strong>
+                  <tr style="cursor:pointer; ${s.id === currentUser.id ? "background:#f9f9f9;font-weight:600;" : ""}" data-open-profile="${s.id}">
+                    <td>#${idx + 1}</td>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:10px;">
+                        <img src="${escapeHtml(s.avatar)}" alt="${escapeHtml(s.name)}" class="nav-avatar" />
+                        <span>${escapeHtml(s.name)}</span>
+                      </div>
                     </td>
-                    <td>${escapeHtml(stu.year)}</td>
+                    <td>${escapeHtml(s.year)}</td>
                     <td><span class="pill-tag">Nivell ${tier.level} · ${tier.name}</span></td>
-                    <td>${state.projects.filter((p) => p.ownerId === stu.id).length}</td>
-                    <td>${stu.commentsCount || 0}</td>
-                    <td><strong>${stu.points || 0} pts</strong></td>
+                    <td>${s.usefulCommentsCount || 0}</td>
+                    <td><strong>${s.points || 0} pts</strong></td>
                   </tr>
                 `;
               })
@@ -2468,182 +2481,368 @@ import {
         </table>
       </div>
 
-      <h3 style="margin:28px 0 12px;font-size:16px;">Historial recent de punts (${escapeHtml(currentUser.name)})</h3>
-      <div class="leaderboard-table-wrap">
-        ${
-          myLedger.length
-            ? myLedger
-                .map(
-                  (entry) => `
-                    <div style="display: flex; justify-content:space-between;padding: 8px 6px;border-bottom:1px solid var(--border-light);">
-                      <span>${escapeHtml(entry.label || entry.action)}</span>
-                      <strong>+${entry.points} pts</strong>
-                    </div>
-                  `
-                )
-                .join("")
-            : `<p style="color:var(--text-muted);margin:0;">Encara no hi ha moviments registrats.</p>`
-        }
-      </div>
+      ${
+        recentLedger.length
+          ? `<h3 style="font-size:16px;margin:28px 0 12px;">El teu historial recent de punts</h3>
+             <div class="leaderboard-table-wrap">
+               ${recentLedger
+                 .map(
+                   (item) => `
+                   <div style="display:flex;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border-light);font-size:13.5px;">
+                     <span>${escapeHtml(item.label)}</span>
+                     <strong style="color:var(--accent-success);">+${item.points} pts</strong>
+                   </div>
+                 `
+                 )
+                 .join("")}
+             </div>`
+          : ""
+      }
     `;
   }
 
-  // ========================================================================
-  // 11. NOTIFICACIONS, MODALS I FORMULARIS
-  // ========================================================================
-  async function pushNotification(userId, text, targetRoute, targetId) {
-    if (!userId) return;
-    const notifId = "notif-" + Date.now() + Math.random().toString(36).slice(2, 5);
-    await setDoc(doc(db, "notifications", notifId), {
-      id: notifId,
+  // =========================================================================
+  // 11. NOTIFICACIONS I POPOVERS
+  // =========================================================================
+  async function pushNotification(userId, text, linkType, linkId) {
+    const id = "not-" + Date.now() + Math.random().toString(36).slice(2, 5);
+    await setDoc(doc(db, "notifications", id), {
+      id,
       userId,
       text,
-      time: new Date().toLocaleTimeString("ca-ES", { hour: "2-digit", minute: "2-digit" }),
-      createdTimestamp: Date.now(),
       read: false,
-      targetRoute,
-      targetId
+      time: "Ara mateix",
+      linkType,
+      linkId
     });
   }
 
   function updateHeaderChrome() {
     const currentUser = getCurrentUser();
     const avatarEl = document.getElementById("nav-user-avatar");
-    if (avatarEl && currentUser.avatar) avatarEl.src = currentUser.avatar;
+    if (avatarEl) avatarEl.src = currentUser.avatar;
 
-    const tier = getAchievementTier(currentUser.points || 0);
-    const infoEl = document.getElementById("popover-user-info");
-    if (infoEl) {
-      infoEl.innerHTML = `
+    const userInfo = document.getElementById("popover-user-info");
+    if (userInfo) {
+      const tier = getAchievementTier(currentUser.points || 0);
+      userInfo.innerHTML = `
         <strong>${escapeHtml(currentUser.name)}</strong>
-        <span>${escapeHtml(currentUser.year)} · ${currentUser.points || 0} pts (${tier.name})</span>
+        <span>${escapeHtml(currentUser.year)} · ${currentUser.points || 0} pts (Nivell ${tier.level})</span>
       `;
     }
 
-    const userNotifs = state.notifications
-      .filter((n) => n.userId === currentUser.id)
-      .sort((a, b) => (b.createdTimestamp || 0) - (a.createdTimestamp || 0));
-    const unreadCount = userNotifs.filter((n) => !n.read).length;
+    const myNotifs = state.notifications.filter((n) => n.userId === currentUser.id);
+    const unreadCount = myNotifs.filter((n) => !n.read).length;
     const badgeEl = document.getElementById("notif-unread-count");
     if (badgeEl) {
       badgeEl.textContent = unreadCount;
       badgeEl.classList.toggle("hidden", unreadCount === 0);
     }
 
-    const notifListEl = document.getElementById("notif-list-container");
-    if (notifListEl) {
-      notifListEl.innerHTML = userNotifs.length
-        ? userNotifs
-            .slice(0, 10)
-            .map(
-              (n) => `
-                <div class="notif-item ${n.read ? "" : "unread"}" data-notif-id="${n.id}">
-                  <div>${escapeHtml(n.text)}</div>
-                  <span class="notif-time">${escapeHtml(n.time)}</span>
-                </div>
-              `
-            )
-            .join("")
-        : `<div style="padding:12px;color:var(--text-muted);font-size:12.5px;">Sense notificacions noves.</div>`;
+    const listEl = document.getElementById("notif-list-container");
+    if (listEl) {
+      listEl.innerHTML =
+        myNotifs.length === 0
+          ? `<div style="padding:14px;color:var(--text-muted);font-size:12.5px;">Sense notificacions noves.</div>`
+          : myNotifs
+              .map(
+                (n) => `
+              <div class="notif-item ${n.read ? "" : "unread"}" data-notif-id="${n.id}" data-link-type="${n.linkType}" data-link-id="${n.linkId}">
+                <div>${escapeHtml(n.text)}</div>
+                <span class="notif-time">${escapeHtml(n.time)}</span>
+              </div>
+            `
+              )
+              .join("");
 
-      notifListEl.querySelectorAll("[data-notif-id]").forEach((el) => {
-        el.addEventListener("click", async () => {
-          const notif = state.notifications.find((item) => item.id === el.dataset.notifId);
-          if (notif) {
-            await updateDoc(doc(db, "notifications", notif.id), { read: true });
-            if (notif.targetRoute) navigateTo(notif.targetRoute, notif.targetId);
-          }
+      listEl.querySelectorAll(".notif-item").forEach((item) => {
+        item.addEventListener("click", async () => {
+          const notif = state.notifications.find((n) => n.id === item.dataset.notifId);
+          if (notif) await updateDoc(doc(db, "notifications", notif.id), { read: true });
+          closeAllPopovers();
+          if (item.dataset.linkType === "project") navigateTo("project", item.dataset.linkId);
+          else if (item.dataset.linkType === "messages") navigateTo("messages", item.dataset.linkId);
+          else if (item.dataset.linkType === "positions") navigateTo("positions");
         });
       });
     }
   }
 
-  function openEditProjectModal(proj) {
-    document.getElementById("modal-project-title").textContent = "Editar projecte";
-    document.getElementById("proj-edit-id").value = proj.id;
-    document.getElementById("proj-title").value = proj.title;
-    document.getElementById("proj-category").value = proj.category;
+  function closeAllPopovers() {
+    document.querySelectorAll(".popover-menu").forEach((m) => m.classList.add("hidden"));
+    document.getElementById("popover-underlay")?.classList.add("hidden");
+    document.querySelectorAll("[aria-expanded]").forEach((btn) => {
+      if (btn.id !== "toggle-advanced-filters") btn.setAttribute("aria-expanded", "false");
+    });
+  }
 
-    const cropAspect = {
-      "span-tall": "portrait",
-      "span-portrait": "portrait",
-      "span-square": "square",
-      "span-landscape": "wide",
-      "span-wide": "wide"
-    };
-    document.getElementById("proj-aspect").value = cropAspect[proj.aspect] || "portrait";
-    document.getElementById("proj-description").value = proj.description;
-    document.getElementById("proj-briefing").value = proj.briefing;
-    document.getElementById("proj-cover").value = proj.cover;
-    document.getElementById("proj-subject").value = proj.subject;
-    document.getElementById("proj-professor").value = proj.professor;
-    document.getElementById("proj-year").value = proj.year;
-    document.getElementById("proj-deadline").value = proj.deadline;
-    document.getElementById("proj-stage").value = proj.stage;
-    document.getElementById("proj-team-type").value = proj.teamType;
-    document.getElementById("proj-participants").value = (proj.participants || []).join(", ");
-    document.getElementById("proj-media-url").value = proj.mediaUrl || "";
-    document.getElementById("proj-feedback-type").value = proj.feedbackType;
-    document.getElementById("proj-questions").value = proj.questions || "";
-    document.getElementById("proj-seeking-collaborator").checked =
-      proj.teamType === "group" && !!proj.seekingCollaborator;
-    document.getElementById("proj-collab-role").value = proj.collaboratorRole || "Dissenyador/a gràfic/a";
+  function togglePopover(menuId, triggerId) {
+    const menu = document.getElementById(menuId);
+    const trigger = document.getElementById(triggerId);
+    const underlay = document.getElementById("popover-underlay");
+    const isHidden = menu.classList.contains("hidden");
+    closeAllPopovers();
+    if (isHidden) {
+      menu.classList.remove("hidden");
+      trigger.setAttribute("aria-expanded", "true");
+      if (underlay) {
+        const rect = menu.getBoundingClientRect();
+        Object.assign(underlay.style, {
+          top: `${rect.top}px`,
+          left: `${rect.left}px`,
+          width: `${rect.width}px`,
+          height: `${rect.height}px`
+        });
+        underlay.classList.remove("hidden");
+      }
+    }
+  }
 
-    syncProjectTeamFields();
-    projectMediaUploadGeneration += 1;
+  function openModal(modalId) {
+    closeAllPopovers();
+    const modal = document.getElementById(modalId);
+    if (modal) modal.classList.remove("hidden");
+  }
+
+  function openLevelsModal(student) {
+    const currentTier = getAchievementTier(student.points || 0);
+    const levels = [
+      { level: 1, name: "Iniciació", range: "0 - 49 punts", description: "Primers passos a la comunitat ERAM, publicant projectes i començant a participar." },
+      { level: 2, name: "Col·laborador", range: "50 - 119 punts", description: "Participació constant amb comentaris constructius i suport als companys." },
+      { level: 3, name: "Col·laborador avançat", range: "120 - 199 punts", description: "Referent actiu de feedback útil i col·laboració entre cursos." },
+      { level: 4, name: "Expert", range: "200 punts o més", description: "Màxim reconeixement de la comunitat per aportacions de gran valor." }
+    ];
+
+    document.getElementById("levels-content").innerHTML = `
+      <p style="margin-top:0;color:var(--text-secondary);">Els punts reflecteixen la participació i la qualitat del feedback compartit amb altres estudiants.</p>
+      <div style="display:grid;gap:10px;">
+        ${levels
+          .map(
+            (lvl) => `
+          <div style="padding:14px;border-radius:14px;border:1px solid ${
+            lvl.level === currentTier.level ? "var(--border-strong)" : "var(--border-light)"
+          };background:${lvl.level === currentTier.level ? "var(--bg-subtle)" : "#fff"};">
+            <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;">
+              <strong>Nivell ${lvl.level} - ${lvl.name}</strong>
+              <span class="pill-tag">${lvl.range}</span>
+            </div>
+            <p style="margin:6px 0 0;color:var(--text-secondary);font-size:13px;">${lvl.description}</p>
+          </div>
+        `
+          )
+          .join("")}
+      </div>
+    `;
+    openModal("modal-levels");
+  }
+
+  function openSubjectModal(subject) {
+    const matchingProjects = state.projects.filter((project) => project.subject === subject);
+    const enrolledStudents = state.students.filter((student) => (student.interests || []).includes(subject));
+
+    document.getElementById("modal-subject-title").textContent = subject;
+    document.getElementById("subject-content").innerHTML = `
+      <p style="margin-top:0;color:var(--text-secondary);">Assignatura del Grau en Comunicació Audiovisual i Multimèdia.</p>
+      <div style="display:grid;gap:12px;">
+        <div>
+          <strong style="display:block;margin-bottom:6px;">Estudiants amb aquesta assignatura (${enrolledStudents.length})</strong>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;">
+            ${
+              enrolledStudents.length
+                ? enrolledStudents
+                    .map(
+                      (student) =>
+                        `<button type="button" class="pill-tag" data-open-profile="${student.id}" data-close-modal="modal-subject" style="border:0;cursor:pointer;">${escapeHtml(student.name)}</button>`
+                    )
+                    .join("")
+                : `<span style="color:var(--text-secondary);font-size:13px;">Encara no hi ha estudiants registrats en aquesta assignatura.</span>`
+            }
+          </div>
+        </div>
+        <div>
+          <strong style="display:block;margin-bottom:6px;">Projectes relacionats (${matchingProjects.length})</strong>
+          <div style="display:grid;gap:8px;">
+            ${
+              matchingProjects.length
+                ? matchingProjects
+                    .map(
+                      (project) =>
+                        `<button type="button" class="popover-item" data-open-project="${project.id}" data-close-modal="modal-subject" style="border:1px solid var(--border-light);">${escapeHtml(project.title)} · ${escapeHtml(getStudentById(project.ownerId).name)}</button>`
+                    )
+                    .join("")
+                : `<span style="color:var(--text-secondary);font-size:13px;">Encara no hi ha projectes publicats d'aquesta assignatura.</span>`
+            }
+          </div>
+        </div>
+      </div>
+    `;
+    openModal("modal-subject");
+  }
+
+  function openAboutModal() {
+    document.getElementById("modal-subject-title").textContent = "About Us";
+    document.getElementById("subject-content").innerHTML = `
+      <p style="margin-top:0;color:var(--text-secondary);line-height:1.6;">
+        Intreramer neix com un punt de trobada digital per als estudiants de l'Escola Universitària ERAM. És una plataforma pensada per compartir projectes acadèmics, demanar i oferir feedback creatiu i trobar col·laboradors per a produccions audiovisuals, interactives o de disseny.
+      </p>
+      <p style="margin-bottom:0;color:var(--text-secondary);line-height:1.6;">
+        El projecte fomenta el treball en xarxa entre cursos i graus per ajudar cada estudiant a millorar la qualitat dels seus treballs abans del lliurament final.
+      </p>
+    `;
+    openModal("modal-subject");
+  }
+
+  function populateParticipantDropdown(selectedParticipants = []) {
+    const select = document.getElementById("proj-registered-participant");
+    if (!select) return;
+    const currentUser = getCurrentUser();
+    const candidates = state.students.filter(
+      (student) => student.id !== currentUser.id && !selectedParticipants.includes(student.name)
+    );
+    select.innerHTML =
+      `<option value="">Selecciona un alumne registrat...</option>` +
+      candidates
+        .map((student) => `<option value="${escapeHtml(student.name)}">${escapeHtml(student.name)} (${escapeHtml(student.year)})</option>`)
+        .join("");
+  }
+
+  function openNewProjectModal() {
+    document.getElementById("modal-project-title").textContent = "Publicar nou projecte";
+    document.getElementById("publish-project-form").reset();
+    document.getElementById("proj-edit-id").value = "";
+    document.getElementById("proj-deadline").value = daysFromNow(7);
+    syncProjectAspectButtons("portrait");
+    uploadedProjectCover = "";
+    uploadedProjectMediaImages = [];
     projectMediaUploadPending = false;
-    document.getElementById("proj-media-images").disabled = false;
-    uploadedProjectMediaImages = (proj.mediaImages || []).map((image) => ({ ...image }));
+    projectMediaUploadGeneration += 1;
+    setProjectCropSource("");
     renderProjectMediaPreview();
-
-    uploadedProjectCover = proj.cover || "";
-    document.getElementById("proj-cover-file").value = "";
-    setProjectCropSource(proj.cover || "", { dirty: false, framed: isProjectCoverFramed(proj) });
+    populateParticipantDropdown();
+    syncProjectTeamFields();
     setProjectWizardStep(1);
     openModal("modal-publish-project");
   }
 
-  function openModal(id) {
-    closeAllPopovers();
-    const el = document.getElementById(id);
-    if (el) el.classList.remove("hidden");
+  function openEditProjectModal(project) {
+    document.getElementById("modal-project-title").textContent = "Editar projecte";
+    document.getElementById("proj-edit-id").value = project.id;
+    document.getElementById("proj-title").value = project.title || "";
+    document.getElementById("proj-category").value = project.category || "Disseny gràfic";
+    const normAspect = (project.aspect || "portrait").replace(/^span-/, "");
+    syncProjectAspectButtons(normAspect === "tall" ? "portrait" : normAspect === "landscape" ? "wide" : normAspect);
+    document.getElementById("proj-cover-file").value = "";
+    document.getElementById("proj-cover").value = /^https?:\/\//i.test(project.cover || "") ? project.cover : "";
+    uploadedProjectCover = project.cover || "";
+    setProjectCropSource(project.cover || "", {
+      dirty: false,
+      framed: isProjectCoverFramed(project)
+    });
+    document.getElementById("proj-description").value = project.description || "";
+    document.getElementById("proj-briefing").value = project.briefing || "";
+    document.getElementById("proj-subject").value = project.subject || "";
+    document.getElementById("proj-professor").value = project.professor || "";
+    document.getElementById("proj-year").value = project.year || "1r Curs";
+    document.getElementById("proj-stage").value = project.stage || "Initial idea";
+    document.getElementById("proj-deadline").value = project.deadline || daysFromNow(7);
+    document.getElementById("proj-team-type").value = project.teamType || "individual";
+    document.getElementById("proj-participants").value = (project.participants || []).join(", ");
+    document.getElementById("proj-seeking-collaborator").checked = Boolean(project.seekingCollaborator);
+    document.getElementById("proj-collab-role").value = project.collaboratorRole || "Dissenyador/a gràfic/a";
+    syncProjectTeamFields();
+    populateParticipantDropdown(project.participants || []);
+    document.getElementById("proj-media-url").value = project.mediaUrl || "";
+    document.getElementById("proj-media-images").value = "";
+    uploadedProjectMediaImages = Array.isArray(project.mediaImages) ? project.mediaImages.map((image) => ({ ...image })) : [];
+    projectMediaUploadPending = false;
+    projectMediaUploadGeneration += 1;
+    renderProjectMediaPreview();
+    document.getElementById("proj-feedback-type").value = project.feedbackType || "";
+    document.getElementById("proj-questions").value = project.questions || "";
+    setProjectWizardStep(1);
+    openModal("modal-publish-project");
   }
 
-  function closeModal(id) {
-    const el = document.getElementById(id);
-    if (el) el.classList.add("hidden");
+  let editProfileSubjects = [];
+
+  function renderEditProfileSubjects() {
+    const selectedContainer = document.getElementById("edit-profile-subject-list");
+    const optionsContainer = document.getElementById("edit-profile-subject-options");
+    const filter = (document.getElementById("edit-profile-subject-input")?.value || "").trim().toLowerCase();
+    if (!selectedContainer || !optionsContainer) return;
+
+    selectedContainer.innerHTML = editProfileSubjects.length
+      ? editProfileSubjects
+          .map(
+            (subject) => `
+            <span class="edit-profile-subject-item">
+              ${escapeHtml(subject)}
+              <button type="button" data-remove-edit-subject="${escapeHtml(subject)}" aria-label="Treure ${escapeHtml(subject)}">&times;</button>
+            </span>`
+          )
+          .join("")
+      : `<p class="edit-profile-subject-empty">Cap assignatura seleccionada.</p>`;
+
+    const groupsHtml = SUBJECT_GROUPS.map((group) => {
+      const available = group.subjects.filter(
+        (subject) =>
+          !editProfileSubjects.includes(subject) &&
+          (!filter || subject.toLowerCase().includes(filter) || group.label.toLowerCase().includes(filter))
+      );
+      if (!available.length) return "";
+      return `
+        <div>
+          <p class="edit-profile-subject-group-title">${escapeHtml(group.label)}</p>
+          <div class="edit-profile-subject-group-list">
+            ${available
+              .map(
+                (subject) =>
+                  `<button type="button" class="edit-profile-subject-option" data-add-edit-subject="${escapeHtml(subject)}">+ ${escapeHtml(subject)}</button>`
+              )
+              .join("")}
+          </div>
+        </div>`;
+    })
+      .filter(Boolean)
+      .join("");
+
+    optionsContainer.innerHTML = groupsHtml || `<p class="edit-profile-subject-empty">No s'han trobat assignatures.</p>`;
   }
 
-  function closeAllPopovers() {
-    document.querySelectorAll(".popover-menu").forEach((m) => m.classList.add("hidden"));
-    document.getElementById("popover-underlay")?.classList.add("hidden");
+  function openEditProfileModal(student) {
+    const [firstName, ...lastNameParts] = (student.name || "").trim().split(/\s+/);
+    document.getElementById("edit-profile-name").value = firstName || "";
+    document.getElementById("edit-profile-surname").value = lastNameParts.join(" ");
+    document.getElementById("edit-profile-email").value = student.email || "";
+    document.getElementById("edit-profile-avatar").value = "";
+    document.getElementById("edit-profile-avatar-color").value = student.avatarColor || "#8f7cf6";
+    document.getElementById("edit-profile-subject-input").value = "";
+    document.getElementById("edit-profile-password").value = "";
+    document.getElementById("edit-profile-password-confirm").value = "";
+    document.getElementById("edit-profile-error").classList.add("hidden");
+    editProfileSubjects = [...new Set(student.interests || [])];
+    renderEditProfileSubjects();
+    openModal("modal-edit-profile");
   }
 
-  function refreshPopoverUnderlay() {
-    const underlay = document.getElementById("popover-underlay");
-    const openMenu = document.querySelector(".popover-menu:not(.hidden)");
-    if (!underlay || !openMenu) {
-      underlay?.classList.add("hidden");
-      return;
-    }
-    const rect = openMenu.getBoundingClientRect();
-    underlay.style.left = `${rect.left}px`;
-    underlay.style.top = `${rect.top}px`;
-    underlay.style.width = `${rect.width}px`;
-    underlay.style.height = `${rect.height}px`;
+  function closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) modal.classList.add("hidden");
   }
 
   function showToast(message) {
     const container = document.getElementById("toast-container");
-    const toast = document.createElement("div");
-    toast.className = "toast-msg";
-    toast.textContent = message;
-    container.appendChild(toast);
-    setTimeout(() => toast.remove(), 3400);
+    const el = document.createElement("div");
+    el.className = "toast-msg";
+    el.textContent = message;
+    container.appendChild(el);
+    setTimeout(() => {
+      el.remove();
+    }, 3400);
   }
 
   function escapeHtml(str) {
-    if (str == null) return "";
+    if (str === null || str === undefined) return "";
     return String(str)
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
@@ -2651,214 +2850,525 @@ import {
       .replace(/"/g, "&quot;");
   }
 
-  // ========================================================================
-  // 12. EVENT LISTENERS GLOBALS
-  // ========================================================================
-  function bindGlobalEvents() {
-    window.addEventListener("resize", updateProjectDetailStickyTop, { passive: true });
+  // =========================================================================
+  // 12. AUTENTICACIÓ AMB FIREBASE AUTH + FIRESTORE
+  // =========================================================================
+  function getRegistrationProgram(degreeCode = document.getElementById("auth-degree")?.value) {
+    return REGISTRATION_PROGRAMS[degreeCode] || null;
+  }
 
-    const editProfileForm = document.getElementById("edit-profile-form");
-    if (editProfileForm) {
-      const subjectList = document.getElementById("edit-profile-subject-list");
-      const subjectInput = document.getElementById("edit-profile-subject-input");
-      const availableSubjects = document.getElementById("edit-profile-subject-options");
+  function getSelectedRegistrationRole() {
+    return document.querySelector('input[name="auth-role"]:checked')?.value || "student";
+  }
 
-      const renderAvailableSubjects = () => {
-        const query = subjectInput.value.trim().toLowerCase();
-        const selected = new Set(
-          [...subjectList.querySelectorAll("[data-edit-profile-subject]")].map((item) =>
-            item.dataset.editProfileSubject.toLowerCase()
-          )
-        );
-        const matches = SUBJECT_GROUPS.map((group) => ({
-          label: group.label,
-          subjects: group.subjects.filter(
-            (subject) => !selected.has(subject.toLowerCase()) && subject.toLowerCase().includes(query)
-          )
-        })).filter((group) => group.subjects.length);
+  function getRegistrationTotalSteps(role = getSelectedRegistrationRole()) {
+    return role === "alumni" ? 2 : 3;
+  }
 
-        availableSubjects.innerHTML = matches.length
-          ? matches
-              .map(
-                (group) => `
-                  <section class="edit-profile-subject-group">
-                    <h3 class="edit-profile-subject-group-title">${escapeHtml(group.label)}</h3>
-                    <div class="edit-profile-subject-group-list">
-                      ${group.subjects
-                        .map(
-                          (subject) => `
-                            <button type="button" class="edit-profile-subject-option" data-add-profile-subject="${escapeHtml(subject)}">
-                              ${escapeHtml(subject)}
-                            </button>
-                          `
-                        )
-                        .join("")}
-                    </div>
-                  </section>
-                `
-              )
-              .join("")
-          : `<p class="edit-profile-subject-empty">${
-              query ? "No s'han trobat assignatures disponibles." : "Ja has seleccionat totes les assignatures."
-            }</p>`;
-      };
+  let authRegisterStep = 1;
 
-      const addSubject = (subject) => {
-        if (!ALL_STUDY_SUBJECTS.includes(subject)) return;
-        const alreadySelected = [...subjectList.querySelectorAll("[data-edit-profile-subject]")].some(
-          (item) => item.dataset.editProfileSubject.toLowerCase() === subject.toLowerCase()
-        );
-        if (alreadySelected) return;
+  function setAuthRegisterStep(step) {
+    const role = getSelectedRegistrationRole();
+    const totalSteps = getRegistrationTotalSteps(role);
+    const personalDetailsTitle = document.querySelector(".auth-personal-details-title");
+    const alumniAcademicHeading = document.getElementById("auth-alumni-academic-heading");
+    const alumniAcademicTarget = document.getElementById("auth-alumni-academic-target");
+    const studentAcademicTarget = document.getElementById("auth-student-academic-target");
+    const academicFields = document.getElementById("auth-academic-fields");
+    const stepLabels =
+      role === "alumni"
+        ? ["Pas 1 de 2 · Perfil", "Pas 2 de 2 · Dades personals"]
+        : ["Pas 1 de 3 · Perfil", "Pas 2 de 3 · Dades personals", "Pas 3 de 3 · Grau i assignatures"];
+    authRegisterStep = Math.max(1, Math.min(totalSteps, step));
 
-        const item = document.createElement("span");
-        item.className = "edit-profile-subject-item";
-        item.dataset.editProfileSubject = subject;
-        const label = document.createElement("span");
-        label.textContent = subject;
-        const removeButton = document.createElement("button");
-        removeButton.type = "button";
-        removeButton.dataset.removeProfileSubject = "";
-        removeButton.setAttribute("aria-label", `Elimina ${subject}`);
-        removeButton.textContent = "×";
-        item.append(label, removeButton);
-        subjectList.append(item);
-      };
-
-      subjectInput.addEventListener("input", renderAvailableSubjects);
-      availableSubjects.addEventListener("click", (event) => {
-        const option = event.target.closest("[data-add-profile-subject]");
-        if (!option) return;
-        addSubject(option.dataset.addProfileSubject);
-        renderAvailableSubjects();
-      });
-
-      subjectList.addEventListener("click", (event) => {
-        const removeButton = event.target.closest("[data-remove-profile-subject]");
-        if (!removeButton) return;
-        removeButton.closest("[data-edit-profile-subject]")?.remove();
-        renderAvailableSubjects();
-      });
-
-      document.getElementById("edit-profile-avatar").addEventListener("change", (event) => {
-        const file = event.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = async () => {
-          const student = getCurrentUser();
-          const avatarUrl = await uploadDataUrlIfNeeded(reader.result, "avatars");
-          await setDoc(doc(db, "students", student.id), { avatar: avatarUrl }, { merge: true });
-        };
-        reader.readAsDataURL(file);
-      });
-
-      document.getElementById("edit-profile-remove-avatar").addEventListener("click", async () => {
-        const student = getCurrentUser();
-        const color = document.getElementById("edit-profile-avatar-color").value;
-        await setDoc(doc(db, "students", student.id), {
-          avatar: makeInitialAvatar(student.name, color),
-          avatarColor: color
-        }, { merge: true });
-        showToast("Fotografia eliminada. S'estan mostrant les inicials.");
-      });
-
-      editProfileForm.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        const student = getCurrentUser();
-        const name = document.getElementById("edit-profile-name").value.trim();
-        const surname = document.getElementById("edit-profile-surname").value.trim();
-        const email = document.getElementById("edit-profile-email").value.trim().toLowerCase();
-        const subjects = [...subjectList.querySelectorAll("[data-edit-profile-subject]")].map(
-          (item) => item.dataset.editProfileSubject
-        );
-        const error = document.getElementById("edit-profile-error");
-
-        if (!name || !surname || !email) {
-          error.textContent = "Completa el nom, els cognoms i el correu.";
-          error.classList.remove("hidden");
-          return;
-        }
-
-        const fullName = `${name} ${surname}`.trim();
-        const avatarColor = document.getElementById("edit-profile-avatar-color").value;
-        const updates = {
-          name: fullName,
-          email,
-          interests: subjects,
-          avatarColor
-        };
-        if (student.avatar?.startsWith("data:image/png")) {
-          updates.avatar = makeInitialAvatar(fullName, avatarColor);
-        }
-
-        await setDoc(doc(db, "students", student.id), updates, { merge: true });
-        closeModal("modal-edit-profile");
-        showToast("Perfil actualitzat correctament.");
-      });
+    if (personalDetailsTitle) {
+      personalDetailsTitle.textContent = role === "alumni" ? "2. Dades personals i perfil" : "Dades personals i perfil";
+    }
+    if (alumniAcademicHeading && alumniAcademicTarget && studentAcademicTarget && academicFields) {
+      alumniAcademicHeading.classList.toggle("hidden", role !== "alumni");
+      (role === "alumni" ? alumniAcademicTarget : studentAcademicTarget).prepend(academicFields);
     }
 
-    document.addEventListener("click", (event) => {
-      const contactButton = event.target.closest("[data-contact-owner]");
-      if (contactButton) {
-        startOrOpenConversation(contactButton.dataset.contactOwner);
+    document.querySelectorAll("[data-auth-register-step]").forEach((section) => {
+      const sectionStep = Number(section.dataset.authRegisterStep);
+      section.hidden = sectionStep !== authRegisterStep || sectionStep > totalSteps;
+    });
+
+    document.querySelectorAll("[data-auth-register-progress]").forEach((indicator) => {
+      const indicatorStep = Number(indicator.dataset.authRegisterProgress);
+      indicator.hidden = indicatorStep > totalSteps;
+      indicator.classList.toggle("is-active", indicatorStep <= authRegisterStep && indicatorStep <= totalSteps);
+    });
+
+    document.getElementById("auth-register-step-label").textContent = stepLabels[authRegisterStep - 1];
+    document.getElementById("auth-register-back").classList.toggle("hidden", authRegisterStep === 1);
+    document.getElementById("auth-register-next").classList.toggle("hidden", authRegisterStep === totalSteps);
+    document.getElementById("auth-register-submit").classList.toggle("hidden", authRegisterStep !== totalSteps);
+    document.getElementById("auth-form-error").classList.add("hidden");
+  }
+
+  function advanceAuthRegisterStep() {
+    const errorEl = document.getElementById("auth-form-error");
+    errorEl.classList.add("hidden");
+
+    if (authRegisterStep === 2) {
+      const firstName = document.getElementById("auth-first-name").value.trim();
+      const lastName = document.getElementById("auth-last-name").value.trim();
+      const email = document.getElementById("auth-email").value.trim();
+      const password = document.getElementById("auth-password").value;
+      const passwordConfirm = document.getElementById("auth-password-confirm").value;
+
+      if (!firstName || !lastName) {
+        errorEl.textContent = "Introdueix el teu nom i cognoms.";
+        errorEl.classList.remove("hidden");
+        return;
+      }
+      if (!email || !email.includes("@")) {
+        errorEl.textContent = "Introdueix un correu electrònic vàlid.";
+        errorEl.classList.remove("hidden");
+        return;
+      }
+      if (password.length < 8) {
+        errorEl.textContent = "La contrasenya ha de tenir almenys 8 caràcters.";
+        errorEl.classList.remove("hidden");
+        return;
+      }
+      if (password !== passwordConfirm) {
+        errorEl.textContent = "Les contrasenyes no coincideixen.";
+        errorEl.classList.remove("hidden");
+        return;
+      }
+    }
+
+    setAuthRegisterStep(authRegisterStep + 1);
+  }
+
+  function renderAuthSubjectOptions(selectedSubjects = new Set()) {
+    const degreeCode = document.getElementById("auth-degree")?.value || "";
+    const year = document.getElementById("auth-year")?.value || "";
+    const role = getSelectedRegistrationRole();
+    const program = getRegistrationProgram(degreeCode);
+    const picker = document.getElementById("auth-subject-picker");
+    const emptyMessage = document.getElementById("auth-subjects-empty");
+    const suggestedTitle = document.getElementById("auth-suggested-subjects-title");
+    const suggestedContainer = document.getElementById("auth-suggested-subject-options");
+    const searchInput = document.getElementById("auth-subject-search-input");
+    const searchHelp = document.getElementById("auth-subject-search-help");
+    const searchResultsContainer = document.getElementById("auth-subject-search-results");
+    const selectedContainer = document.getElementById("auth-selected-subject-options");
+    if (!picker || !suggestedContainer || !searchResultsContainer || !selectedContainer) return;
+
+    if (role !== "student" || !program || !year) {
+      picker.hidden = true;
+      if (emptyMessage) {
+        emptyMessage.hidden = role !== "student";
+        emptyMessage.textContent = !program
+          ? "Tria primer el grau i el curs per veure les assignatures del pla d'estudis."
+          : "Tria el curs per veure les assignatures matriculades d'aquest grau.";
+      }
+      suggestedContainer.innerHTML = "";
+      searchResultsContainer.innerHTML = "";
+      selectedContainer.innerHTML = "";
+      return;
+    }
+
+    picker.hidden = false;
+    if (emptyMessage) emptyMessage.hidden = true;
+
+    const yearSubjects = program.years[year] || [];
+    const allProgramSubjects = [
+      ...new Set([...Object.values(program.years).flat(), ...(program.electives || [])])
+    ];
+    const validSelected = new Set(
+      [...selectedSubjects].filter((subject) => allProgramSubjects.includes(subject))
+    );
+    const query = (searchInput?.value || "").trim().toLowerCase();
+
+    if (suggestedTitle) {
+      suggestedTitle.textContent = `Suggerides pel curs (${year})`;
+    }
+
+    const createSubjectLabel = (subject) => `
+      <label class="pill-tag auth-subject-pill ${validSelected.has(subject) ? "selected" : ""}">
+        <input type="checkbox" name="auth-subjects" value="${escapeHtml(subject)}" ${validSelected.has(subject) ? "checked" : ""} />
+        <span>${escapeHtml(subject)}</span>
+      </label>
+    `;
+
+    suggestedContainer.innerHTML = yearSubjects.map(createSubjectLabel).join("");
+
+    const otherSubjects = allProgramSubjects.filter(
+      (subject) => !yearSubjects.includes(subject) && (!query || subject.toLowerCase().includes(query))
+    );
+    if (searchHelp) {
+      searchHelp.textContent = query
+        ? `Resultats per "${searchInput.value.trim()}":`
+        : "Escriu o tria altres assignatures i optatives d'aquest grau:";
+    }
+    searchResultsContainer.innerHTML = otherSubjects.length
+      ? otherSubjects.map(createSubjectLabel).join("")
+      : `<small class="auth-subject-search-help">Cap assignatura coincideix amb aquesta cerca.</small>`;
+
+    const selectedList = [...validSelected];
+    selectedContainer.innerHTML = selectedList.length
+      ? selectedList.map(createSubjectLabel).join("")
+      : `<small class="auth-subject-search-help">Encara no has seleccionat cap assignatura.</small>`;
+  }
+
+  function makeInitialAvatar(name, color) {
+    const initials =
+      name
+        .trim()
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase() || "")
+        .join("") || "IE";
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240">
+      <rect width="240" height="240" rx="120" fill="${color}" />
+      <text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="88" font-weight="700">${initials}</text>
+    </svg>`;
+    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+  }
+
+  function enterApp() {
+    document.body.classList.add("authenticated");
+    const authPage = document.getElementById("auth-page");
+    if (authPage) authPage.classList.add("hidden");
+    navigateTo("discover");
+  }
+
+  function setupAuthFlow() {
+    const authPage = document.getElementById("auth-page");
+    const startView = document.getElementById("auth-start-view");
+    const loginView = document.getElementById("auth-login-view");
+    const recoveryView = document.getElementById("auth-recovery-view");
+    const registerView = document.getElementById("auth-register-view");
+    const loginForm = document.getElementById("auth-login-form");
+    const recoveryForm = document.getElementById("auth-recovery-form");
+    const form = document.getElementById("auth-register-form");
+    if (!authPage || !form || !loginForm || !recoveryForm) return;
+
+    let uploadedAvatar = "";
+    const firstNameInput = document.getElementById("auth-first-name");
+    const lastNameInput = document.getElementById("auth-last-name");
+    const colorInput = document.getElementById("auth-avatar-color");
+    const colorValue = document.getElementById("auth-avatar-color-value");
+    const avatarPreview = document.getElementById("auth-avatar-preview");
+    const avatarInitials = document.getElementById("auth-avatar-initials");
+    const avatarImage = document.getElementById("auth-avatar-image");
+    const avatarUpload = document.getElementById("auth-avatar-upload");
+    const degreeSelect = document.getElementById("auth-degree");
+    const yearSelect = document.getElementById("auth-year");
+    const yearLabel = document.getElementById("auth-year-label");
+
+    const showAuthStep = (step) => {
+      document.getElementById("auth-login-error").classList.add("hidden");
+      document.getElementById("auth-recovery-error").classList.add("hidden");
+      document.getElementById("auth-form-error").classList.add("hidden");
+      startView.classList.toggle("hidden", step !== "start");
+      loginView.classList.toggle("hidden", step !== "login");
+      recoveryView.classList.toggle("hidden", step !== "recovery");
+      registerView.classList.toggle("hidden", step !== "register");
+      if (step === "register") {
+        setAuthRegisterStep(1);
+      }
+    };
+
+    document.getElementById("auth-login-option").addEventListener("click", () => {
+      loginForm.reset();
+      showAuthStep("login");
+    });
+    document.getElementById("auth-create-option").addEventListener("click", () => showAuthStep("register"));
+    document.getElementById("auth-register-next").addEventListener("click", advanceAuthRegisterStep);
+    document.getElementById("auth-register-back").addEventListener("click", () => setAuthRegisterStep(authRegisterStep - 1));
+    document.getElementById("auth-forgot-password").addEventListener("click", () => {
+      document.getElementById("auth-recovery-email").value = document.getElementById("auth-login-email").value.trim();
+      showAuthStep("recovery");
+    });
+    document.querySelectorAll("[data-auth-back]").forEach((btn) => {
+      btn.addEventListener("click", () => showAuthStep("start"));
+    });
+
+    // INICI DE SESSIÓ AMB FIREBASE AUTH
+    loginForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = document.getElementById("auth-login-email").value.trim().toLowerCase();
+      const password = document.getElementById("auth-login-password").value;
+      const errorEl = document.getElementById("auth-login-error");
+      const submitBtn = loginForm.querySelector('button[type="submit"]');
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Iniciant sessió...";
+      errorEl.classList.add("hidden");
+
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+        loginForm.reset();
+      } catch (err) {
+        errorEl.textContent = "El correu o la contrasenya no són correctes. Comprova les credencials.";
+        errorEl.classList.remove("hidden");
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Iniciar sessió";
       }
     });
 
-    document.querySelectorAll("[data-route]").forEach((btn) => {
+    // RECUPERACIÓ DE CONTRASENYA AMB FIREBASE AUTH
+    recoveryForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = document.getElementById("auth-recovery-email").value.trim().toLowerCase();
+      const errorEl = document.getElementById("auth-recovery-error");
+      try {
+        await sendPasswordResetEmail(auth, email);
+        showToast("S'ha enviat un correu de recuperació a " + email);
+        showAuthStep("login");
+      } catch (err) {
+        errorEl.textContent = "No s'ha pogut enviar el correu. Comprova que l'adreça estigui registrada.";
+        errorEl.classList.remove("hidden");
+      }
+    });
+
+    const updateAvatarPreview = () => {
+      const fullName = `${firstNameInput.value} ${lastNameInput.value}`.trim();
+      const initials =
+        fullName
+          .split(/\s+/)
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((part) => part[0].toUpperCase())
+          .join("") || "IE";
+      const color = colorInput.value;
+      colorValue.textContent = color.toUpperCase();
+      avatarPreview.style.background = color;
+      avatarInitials.textContent = initials;
+      if (uploadedAvatar) {
+        avatarImage.src = uploadedAvatar;
+        avatarImage.hidden = false;
+        avatarInitials.hidden = true;
+      } else {
+        avatarImage.hidden = true;
+        avatarInitials.hidden = false;
+      }
+    };
+
+    const syncRoleFields = () => {
+      const role = getSelectedRegistrationRole();
+      const program = getRegistrationProgram();
+      const previousYear = yearSelect.value;
+
+      if (!program) {
+        yearLabel.textContent = role === "alumni" ? "Any de graduació *" : "Curs actual *";
+        yearSelect.disabled = true;
+        yearSelect.innerHTML = `<option value="" selected>Selecciona primer el grau</option>`;
+        renderAuthSubjectOptions(new Set());
+        if (registerView && !registerView.classList.contains("hidden")) {
+          setAuthRegisterStep(authRegisterStep);
+        }
+        return;
+      }
+
+      yearSelect.disabled = false;
+      if (role === "alumni") {
+        yearLabel.textContent = "Any de graduació *";
+        const currentYear = new Date().getFullYear();
+        const options = [`<option value="" disabled ${previousYear ? "" : "selected"}>Selecciona l'any de graduació</option>`];
+        for (let year = currentYear; year >= 2005; year--) {
+          const value = `Promoció ${year}`;
+          options.push(`<option value="${value}" ${previousYear === value ? "selected" : ""}>${year}</option>`);
+        }
+        yearSelect.innerHTML = options.join("");
+        renderAuthSubjectOptions(new Set());
+      } else {
+        yearLabel.textContent = "Curs actual *";
+        const courses = ["1r Curs", "2n Curs", "3r Curs", "4t Curs (TFG)"];
+        yearSelect.innerHTML =
+          `<option value="" disabled ${courses.includes(previousYear) ? "" : "selected"}>Selecciona el curs</option>` +
+          courses.map((course) => `<option value="${course}" ${previousYear === course ? "selected" : ""}>${course}</option>`).join("");
+        renderAuthSubjectOptions(new Set());
+      }
+
+      if (registerView && !registerView.classList.contains("hidden")) {
+        setAuthRegisterStep(authRegisterStep);
+      }
+    };
+
+    firstNameInput.addEventListener("input", updateAvatarPreview);
+    lastNameInput.addEventListener("input", updateAvatarPreview);
+    colorInput.addEventListener("input", updateAvatarPreview);
+    document.querySelectorAll('input[name="auth-role"]').forEach((radio) => {
+      radio.addEventListener("change", syncRoleFields);
+    });
+    degreeSelect.addEventListener("change", syncRoleFields);
+    yearSelect.addEventListener("change", () => renderAuthSubjectOptions(new Set()));
+    document.getElementById("auth-subject-search-input").addEventListener("input", () => {
+      const checked = new Set(
+        [...document.querySelectorAll('input[name="auth-subjects"]:checked')].map((input) => input.value)
+      );
+      renderAuthSubjectOptions(checked);
+    });
+    document.getElementById("auth-subject-picker").addEventListener("change", (e) => {
+      if (e.target.name !== "auth-subjects") return;
+      const checked = new Set(
+        [...document.querySelectorAll('input[name="auth-subjects"]:checked')].map((input) => input.value)
+      );
+      if (e.target.checked) checked.add(e.target.value);
+      else checked.delete(e.target.value);
+      renderAuthSubjectOptions(checked);
+    });
+
+    avatarUpload.addEventListener("change", () => {
+      const file = avatarUpload.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        uploadedAvatar = typeof reader.result === "string" ? reader.result : "";
+        updateAvatarPreview();
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // REGISTRE DE NOU USUARI AMB FIREBASE AUTH + FIRESTORE
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const firstName = firstNameInput.value.trim();
+      const lastName = lastNameInput.value.trim();
+      const fullName = `${firstName} ${lastName}`.trim();
+      const email = document.getElementById("auth-email").value.trim().toLowerCase();
+      const password = document.getElementById("auth-password").value;
+      const role = getSelectedRegistrationRole();
+      const degree = degreeSelect.value;
+      const program = getRegistrationProgram(degree);
+      const year = yearSelect.value;
+      const selectedSubjects = [...new Set([...document.querySelectorAll('input[name="auth-subjects"]:checked')].map((el) => el.value))];
+      const errorEl = document.getElementById("auth-form-error");
+      const submitBtn = document.getElementById("auth-register-submit");
+
+      if (!program) {
+        errorEl.textContent = "Selecciona el teu grau.";
+        errorEl.classList.remove("hidden");
+        return;
+      }
+      if (!year) {
+        errorEl.textContent = role === "alumni" ? "Selecciona l'any de graduació." : "Selecciona el teu curs actual.";
+        errorEl.classList.remove("hidden");
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Creant compte...";
+      errorEl.classList.add("hidden");
+
+      try {
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        const uid = cred.user.uid;
+        let finalAvatar = uploadedAvatar || makeInitialAvatar(fullName, colorInput.value);
+        if (uploadedAvatar) {
+          finalAvatar = await uploadDataUrlIfNeeded(uploadedAvatar, "avatars");
+        }
+
+        const newStudent = {
+          id: uid,
+          name: fullName,
+          email,
+          role,
+          degree,
+          year,
+          avatarColor: colorInput.value,
+          avatar: finalAvatar,
+          bio:
+            role === "alumni"
+              ? `Alumni ERAM (${program.shortName}, ${year}).`
+              : `Estudiant de ${year} de ${program.shortName} a l'ERAM.`,
+          interests: role === "student" ? selectedSubjects : [],
+          points: 0,
+          projectsCount: 0,
+          commentsCount: 0,
+          usefulCommentsCount: 0,
+          secondedCount: 0
+        };
+
+        await setDoc(doc(db, "students", uid), newStudent);
+        showToast(`Benvingut/da a Intreramer, ${firstName}!`);
+      } catch (err) {
+        console.error(err);
+        errorEl.textContent =
+          err.code === "auth/email-already-in-use"
+            ? "Aquest correu ja té un compte creat."
+            : "Error en crear el compte: " + (err.message || "torna-ho a provar.");
+        errorEl.classList.remove("hidden");
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Crear compte i iniciar sessió";
+      }
+    });
+
+    updateAvatarPreview();
+    syncRoleFields();
+    showAuthStep("start");
+  }
+
+  // =========================================================================
+  // 13. INICIALITZACIÓ I LISTENERS GLOBALS
+  // =========================================================================
+  function bindEvents() {
+    document.querySelectorAll(".nav-icon-btn").forEach((btn) => {
       btn.addEventListener("click", () => navigateTo(btn.dataset.route));
     });
 
-    const searchInput = document.getElementById("global-search-input");
-    const searchClear = document.getElementById("search-clear-btn");
-    searchInput.addEventListener("input", (e) => {
-      ui.searchQuery = e.target.value;
-      if (searchClear) searchClear.classList.toggle("hidden", !ui.searchQuery);
-      if (ui.route === "discover") renderDiscoverView();
-      if (ui.route === "positions") renderPositionsView();
+    document.getElementById("platform-menu-trigger").addEventListener("click", (e) => {
+      e.stopPropagation();
+      togglePopover("platform-dropdown", "platform-menu-trigger");
     });
 
-    if (searchClear) {
-      searchClear.addEventListener("click", () => {
-        searchInput.value = "";
-        ui.searchQuery = "";
-        searchClear.classList.add("hidden");
-        if (ui.route === "discover") renderDiscoverView();
-        if (ui.route === "positions") renderPositionsView();
-      });
-    }
-
-    const toggleDropdown = (triggerId, menuId) => {
-      const trigger = document.getElementById(triggerId);
-      const menu = document.getElementById(menuId);
-      trigger.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const wasHidden = menu.classList.contains("hidden");
-        closeAllPopovers();
-        if (wasHidden) {
-          menu.classList.remove("hidden");
-          const underlay = document.getElementById("popover-underlay");
-          if (underlay) {
-            underlay.classList.remove("hidden");
-            refreshPopoverUnderlay();
-          }
-        }
-      });
-    };
-
-    document.getElementById("create-menu-trigger").addEventListener("click", (event) => {
-      event.stopPropagation();
-      closeAllPopovers();
+    document.getElementById("create-menu-trigger").addEventListener("click", (e) => {
+      e.stopPropagation();
       openModal("modal-create");
     });
-
-    toggleDropdown("notif-menu-trigger", "notif-dropdown");
-    toggleDropdown("profile-menu-trigger", "profile-dropdown");
-    toggleDropdown("platform-menu-trigger", "platform-dropdown");
+    document.getElementById("notif-menu-trigger").addEventListener("click", (e) => {
+      e.stopPropagation();
+      togglePopover("notif-dropdown", "notif-menu-trigger");
+    });
+    document.getElementById("profile-menu-trigger").addEventListener("click", (e) => {
+      e.stopPropagation();
+      togglePopover("profile-dropdown", "profile-menu-trigger");
+    });
 
     document.addEventListener("click", (e) => {
       if (!e.target.closest(".dropdown-anchor")) closeAllPopovers();
     });
-    window.addEventListener("resize", refreshPopoverUnderlay);
-    window.addEventListener("scroll", refreshPopoverUnderlay, true);
+
+    document.getElementById("logout-btn").addEventListener("click", async () => {
+      closeAllPopovers();
+      await signOut(auth);
+      showToast("Has tancat la sessió.");
+    });
+
+    document.querySelectorAll("[data-action]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const action = btn.dataset.action;
+        closeAllPopovers();
+        closeModal("modal-create");
+        if (action === "open-publish-project") {
+          openNewProjectModal();
+        }
+        if (action === "open-publish-position") {
+          document.getElementById("publish-position-form").reset();
+          document.getElementById("pos-start").value = daysFromNow(3);
+          document.getElementById("pos-end").value = daysFromNow(20);
+          openModal("modal-publish-position");
+        }
+        if (action === "open-about") {
+          openAboutModal();
+        }
+        if (action === "open-settings") {
+          openEditProfileModal(getCurrentUser());
+        }
+      });
+    });
+
+    document.querySelectorAll(".popover-item[data-route]").forEach((btn) => {
+      btn.addEventListener("click", () => navigateTo(btn.dataset.route));
+    });
 
     document.getElementById("mark-all-read-btn").addEventListener("click", async () => {
       const currentUser = getCurrentUser();
@@ -2868,101 +3378,49 @@ import {
       }
     });
 
-    document.querySelectorAll("[data-action='open-publish-project']").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        closeModal("modal-create");
-        document.getElementById("modal-project-title").textContent = "Publicar nou projecte";
-        document.getElementById("publish-project-form").reset();
-        document.getElementById("proj-edit-id").value = "";
-        document.getElementById("proj-deadline").value = daysFromNow(10);
-        uploadedProjectCover = "";
-        setProjectCropSource("");
-        syncProjectTeamFields();
-        projectMediaUploadGeneration += 1;
-        projectMediaUploadPending = false;
-        document.getElementById("proj-media-images").disabled = false;
-        uploadedProjectMediaImages = [];
-        renderProjectMediaPreview();
-        setProjectWizardStep(1);
-        document.getElementById("proj-registered-participant").innerHTML =
-          '<option value="">Selecciona un estudiant registrat</option>' +
-          state.students.map((student) => `<option value="${escapeHtml(student.name)}">${escapeHtml(student.name)}</option>`).join("");
-        openModal("modal-publish-project");
-      });
+    const searchInput = document.getElementById("global-search-input");
+    const searchClear = document.getElementById("search-clear-btn");
+    searchInput.addEventListener("input", () => {
+      ui.searchQuery = searchInput.value;
+      searchClear.classList.toggle("hidden", !ui.searchQuery);
+      if (ui.route === "discover") renderDiscoverView();
+      if (ui.route === "positions") renderPositionsView();
     });
-
-    document.querySelectorAll("[data-action='open-publish-position']").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        closeModal("modal-create");
-        document.getElementById("publish-position-form").reset();
-        document.getElementById("pos-start").value = daysFromNow(3);
-        document.getElementById("pos-end").value = daysFromNow(20);
-        openModal("modal-publish-position");
-      });
-    });
-
-    document.querySelectorAll("[data-action='open-settings']").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        closeAllPopovers();
-        showToast("Configuració disponible des del teu perfil.");
-      });
-    });
-
-    document.querySelectorAll("[data-action='open-about']").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        closeAllPopovers();
-        showToast("ERAM Creative Network — Escola ERAM.");
-      });
-    });
-
-    document.querySelectorAll("[data-close-modal]").forEach((btn) => {
-      btn.addEventListener("click", () => closeModal(btn.dataset.closeModal));
-    });
-
-    document.getElementById("modal-create")?.addEventListener("click", (event) => {
-      if (event.target.id === "modal-create") closeModal("modal-create");
+    searchClear.addEventListener("click", () => {
+      searchInput.value = "";
+      ui.searchQuery = "";
+      searchClear.classList.add("hidden");
+      if (ui.route === "discover") renderDiscoverView();
+      if (ui.route === "positions") renderPositionsView();
     });
 
     document.querySelectorAll("[data-category]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const isActiveCategory = ui.selectedCategory === btn.dataset.category;
-        if (btn.dataset.category === "General" && ui.filters.urgentOnly) {
-          ui.filters.urgentOnly = false;
-          const urgentFilter = document.getElementById("filter-urgent-only");
-          if (urgentFilter) urgentFilter.checked = false;
-        } else if (isActiveCategory && btn.dataset.category !== "General") {
-          ui.selectedCategory = "General";
-        } else {
-          ui.selectedCategory = btn.dataset.category;
-          if (ui.filters.urgentOnly) {
-            ui.filters.urgentOnly = false;
-            const urgentFilter = document.getElementById("filter-urgent-only");
-            if (urgentFilter) urgentFilter.checked = false;
-          }
-        }
+        ui.selectedCategory = btn.dataset.category;
+        ui.visibleCount = 15;
         document.querySelectorAll("[data-category]").forEach((b) => {
-          const isMatch = b.dataset.category === ui.selectedCategory;
-          b.classList.toggle("active", isMatch);
-          b.setAttribute("aria-selected", String(isMatch));
+          const active = b.dataset.category === ui.selectedCategory;
+          b.classList.toggle("active", active);
+          b.setAttribute("aria-selected", String(active));
         });
         renderDiscoverView();
       });
     });
 
-    document.getElementById("toggle-advanced-filters").addEventListener("click", () => {
-      document.getElementById("advanced-filters-panel").classList.toggle("hidden");
+    document.getElementById("toggle-advanced-filters").addEventListener("click", (e) => {
+      const panel = document.getElementById("advanced-filters-panel");
+      const open = panel.classList.toggle("hidden");
+      e.currentTarget.setAttribute("aria-expanded", String(!open));
     });
 
-    const filterBindings = [
+    [
       ["filter-subject", "subject"],
       ["filter-professor", "professor"],
       ["filter-year", "year"],
       ["filter-stage", "stage"],
       ["filter-team", "teamType"],
       ["filter-status", "status"]
-    ];
-
-    filterBindings.forEach(([elId, key]) => {
+    ].forEach(([elId, key]) => {
       document.getElementById(elId).addEventListener("change", (e) => {
         ui.filters[key] = e.target.value;
         renderDiscoverView();
@@ -2971,199 +3429,144 @@ import {
 
     document.getElementById("filter-urgent-only").addEventListener("change", (e) => {
       ui.filters.urgentOnly = e.target.checked;
-      if (e.target.checked) {
-        ui.selectedCategory = "General";
-        document.querySelectorAll("[data-category]").forEach((b) => {
-          const isGeneral = b.dataset.category === "General";
-          b.classList.toggle("active", isGeneral);
-          b.setAttribute("aria-selected", String(isGeneral));
-        });
-      }
       renderDiscoverView();
     });
 
-    const resetFilters = () => {
-      ui.selectedCategory = "General";
-      ui.searchQuery = "";
-      document.getElementById("global-search-input").value = "";
-      ui.filters = { subject: "", professor: "", year: "", stage: "", teamType: "", status: "active", urgentOnly: false };
-      filterBindings.forEach(([elId, key]) => (document.getElementById(elId).value = ui.filters[key]));
-      document.getElementById("filter-urgent-only").checked = false;
-      document.getElementById("advanced-filters-panel").classList.add("hidden");
-      document.querySelectorAll("[data-category]").forEach((b) => {
-        const isGeneral = b.dataset.category === "General";
-        b.classList.toggle("active", isGeneral);
-        b.setAttribute("aria-selected", String(isGeneral));
-      });
+    const resetAllFilters = () => {
+      resetDiscoveryFilters();
       renderDiscoverView();
     };
+    document.getElementById("clear-all-filters-btn").addEventListener("click", resetAllFilters);
+    document.getElementById("empty-reset-btn").addEventListener("click", resetAllFilters);
 
-    document.getElementById("clear-all-filters-btn").addEventListener("click", resetFilters);
-    document.getElementById("empty-reset-btn").addEventListener("click", resetFilters);
     document.getElementById("load-more-projects-btn").addEventListener("click", () => {
-      ui.visibleCount += 8;
+      ui.visibleCount += 12;
       renderDiscoverView();
     });
 
+    // Selector de format (ràtio) amb botons circulars (3:4, 1:1, 16:9)
+    document.querySelectorAll("[data-aspect-choice]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const aspect = btn.dataset.aspectChoice;
+        syncProjectAspectButtons(aspect);
+        if (projectCrop.image) {
+          projectCrop.dirty = true;
+          drawProjectCrop();
+        }
+      });
+    });
+
+    // Autocompletat d'assignatures al camp de creació/edició de projecte
+    const projSubjectInput = document.getElementById("proj-subject");
+    const projSubjectSuggestions = document.getElementById("proj-subject-suggestions");
+
+    const renderSubjectSuggestions = (queryText = "") => {
+      if (!projSubjectSuggestions) return;
+      const q = queryText.trim().toLowerCase();
+      const matches = ALL_STUDY_SUBJECTS.filter((sub) => !q || sub.toLowerCase().includes(q)).slice(0, 12);
+      if (!matches.length) {
+        projSubjectSuggestions.classList.add("hidden");
+        return;
+      }
+      projSubjectSuggestions.innerHTML = matches
+        .map((sub) => {
+          const group = SUBJECT_GROUPS.find((g) => g.subjects.includes(sub))?.label || "Grau";
+          return `<button type="button" class="subject-suggestion-item" data-pick-subject="${escapeHtml(sub)}">
+            <span>${escapeHtml(sub)}</span>
+            <small>${escapeHtml(group)}</small>
+          </button>`;
+        })
+        .join("");
+      projSubjectSuggestions.classList.remove("hidden");
+    };
+
+    projSubjectInput?.addEventListener("focus", () => renderSubjectSuggestions(projSubjectInput.value));
+    projSubjectInput?.addEventListener("input", () => renderSubjectSuggestions(projSubjectInput.value));
+    projSubjectSuggestions?.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-pick-subject]");
+      if (!btn) return;
+      projSubjectInput.value = btn.dataset.pickSubject;
+      projSubjectSuggestions.classList.add("hidden");
+    });
     document.addEventListener("click", (e) => {
-      const photoRef = e.target.closest("[data-open-project-photo]");
-      if (photoRef) {
-        navigateTo("project", photoRef.dataset.projectId);
-        requestAnimationFrame(() => {
-          const target = document.getElementById(`project-media-${photoRef.dataset.openProjectPhoto}`);
-          if (!target) return;
-          target.scrollIntoView({ behavior: "smooth", block: "center" });
-          target.classList.add("reference-highlight");
-          window.setTimeout(() => target.classList.remove("reference-highlight"), 1800);
-        });
-        return;
-      }
-
-      const commentRef = e.target.closest("[data-open-project-comment]");
-      if (commentRef) {
-        navigateTo("project", commentRef.dataset.openProject);
-        requestAnimationFrame(() => {
-          const target = document.getElementById(`project-comment-${commentRef.dataset.openProjectComment}`);
-          if (!target) return;
-          target.scrollIntoView({ behavior: "smooth", block: "center" });
-          target.classList.add("reference-highlight");
-          window.setTimeout(() => target.classList.remove("reference-highlight"), 1800);
-        });
-        return;
-      }
-
-      const projTrigger = e.target.closest("[data-open-project]");
-      if (projTrigger) {
-        navigateTo("project", projTrigger.dataset.openProject);
-        return;
-      }
-
-      const profTrigger = e.target.closest("[data-open-profile]");
-      if (profTrigger) {
-        navigateTo("profile", profTrigger.dataset.openProfile);
+      if (!e.target.closest(".subject-autocomplete-wrap")) {
+        projSubjectSuggestions?.classList.add("hidden");
       }
     });
 
-    const teamTypeSelect = document.getElementById("proj-team-type");
-    const collabCheck = document.getElementById("proj-seeking-collaborator");
-    teamTypeSelect?.addEventListener("change", syncProjectTeamFields);
-    collabCheck?.addEventListener("change", syncProjectTeamFields);
-
-    document.getElementById("proj-registered-participant")?.addEventListener("change", (event) => {
-      if (!event.target.value) return;
-      const input = document.getElementById("proj-participants");
-      const names = input.value ? input.value.split(",").map((name) => name.trim()).filter(Boolean) : [];
-      if (!names.includes(event.target.value)) names.push(event.target.value);
-      input.value = names.join(", ");
-      event.target.value = "";
+    document.getElementById("proj-wizard-next").addEventListener("click", advanceProjectWizard);
+    document.getElementById("proj-wizard-back").addEventListener("click", () => setProjectWizardStep(projectWizardStep - 1));
+    document.getElementById("proj-team-type").addEventListener("change", syncProjectTeamFields);
+    document.getElementById("proj-seeking-collaborator").addEventListener("change", syncProjectTeamFields);
+    document.getElementById("proj-registered-participant").addEventListener("change", (e) => {
+      const name = e.target.value;
+      if (!name) return;
+      const participantsInput = document.getElementById("proj-participants");
+      const participants = participantsInput.value.split(",").map((p) => p.trim()).filter(Boolean);
+      if (!participants.includes(name)) {
+        participants.push(name);
+        participantsInput.value = participants.join(", ");
+      }
+      populateParticipantDropdown(participants);
+      e.target.value = "";
     });
 
-    document.getElementById("proj-cover-file")?.addEventListener("change", (event) => {
-      const file = event.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      projectCrop.image = null;
-      projectCrop.source = "pending-file";
-      projectCrop.loading = true;
-      projectCrop.pendingFile = file;
-      projectCrop.dirty = true;
-      document.getElementById("proj-cropper").classList.remove("hidden");
-      document.getElementById("proj-cover").value = "";
-      uploadedProjectCover = "";
-      showProjectCropError("Carregant la imatge…");
-
-      reader.onload = () => {
-        if (projectCrop.pendingFile !== file) return;
-        uploadedProjectCover = reader.result;
-        setProjectCropSource(uploadedProjectCover);
-      };
-      reader.onerror = () => {
-        if (projectCrop.pendingFile !== file) return;
-        projectCrop.pendingFile = null;
-        projectCrop.loading = false;
-        showProjectCropError("No s’ha pogut llegir el fitxer. Torna-ho a provar.");
-      };
-      reader.readAsDataURL(file);
-    });
-
-    document.getElementById("proj-cover")?.addEventListener("change", (event) => {
-      uploadedProjectCover = event.target.value.trim();
-      setProjectCropSource(uploadedProjectCover);
-    });
-
-    document.getElementById("proj-media-images")?.addEventListener("change", async (event) => {
-      const input = event.currentTarget;
-      const files = Array.from(input.files || []);
+    document.getElementById("proj-media-images").addEventListener("change", async (e) => {
+      const files = [...(e.target.files || [])].filter((file) => file.type.startsWith("image/"));
       if (!files.length) return;
       const generation = ++projectMediaUploadGeneration;
       projectMediaUploadPending = true;
-      input.disabled = true;
-
       try {
-        for (const file of files) {
-          if (generation !== projectMediaUploadGeneration) return;
-          try {
-            const image = await readProjectMediaImage(file);
-            if (generation !== projectMediaUploadGeneration) return;
-            uploadedProjectMediaImages.push(image);
-            renderProjectMediaPreview();
-          } catch (error) {
-            if (generation !== projectMediaUploadGeneration) return;
-            showToast(`No s’ha pogut afegir "${file.name}". Comprova que sigui una imatge vàlida.`);
-          }
+        const readImages = await Promise.all(files.map(readProjectMediaImage));
+        if (generation !== projectMediaUploadGeneration) return;
+        uploadedProjectMediaImages = [...uploadedProjectMediaImages, ...readImages];
+        renderProjectMediaPreview();
+      } catch (err) {
+        if (generation === projectMediaUploadGeneration) {
+          showToast(err instanceof Error ? err.message : "No s'han pogut afegir les imatges.");
         }
       } finally {
         if (generation === projectMediaUploadGeneration) {
           projectMediaUploadPending = false;
-          input.disabled = false;
-          input.value = "";
         }
+        e.target.value = "";
       }
     });
 
-    document.getElementById("proj-aspect")?.addEventListener("change", () => {
-      if (!projectCrop.image) return;
-      projectCrop.dirty = true;
-      projectCrop.offsetX = 0;
-      projectCrop.offsetY = 0;
-      drawProjectCrop();
+    document.getElementById("proj-cover-file").addEventListener("change", (e) => {
+      const file = e.target.files?.[0];
+      if (!file || !file.type.startsWith("image/")) return;
+      uploadedProjectCover = "";
+      document.getElementById("proj-cover").value = "";
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === "string") {
+          setProjectCropSource(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
     });
 
-    const cropCanvas = document.getElementById("proj-crop-canvas");
-    cropCanvas?.addEventListener("pointerdown", (event) => {
-      if (!projectCrop.image) return;
-      event.preventDefault();
-      projectCrop.dragging = true;
-      projectCrop.lastX = event.clientX;
-      projectCrop.lastY = event.clientY;
-      cropCanvas.setPointerCapture(event.pointerId);
+    document.getElementById("proj-cover").addEventListener("change", (e) => {
+      const url = e.target.value.trim();
+      if (!url) {
+        if (!uploadedProjectCover && !projectCrop.source.startsWith("data:")) {
+          setProjectCropSource("");
+        }
+        return;
+      }
+      document.getElementById("proj-cover-file").value = "";
+      uploadedProjectCover = "";
+      setProjectCropSource(url);
     });
 
-    cropCanvas?.addEventListener("pointermove", (event) => {
-      if (!projectCrop.dragging || !projectCrop.image) return;
-      const bounds = cropCanvas.getBoundingClientRect();
-      projectCrop.offsetX += (event.clientX - projectCrop.lastX) * (cropCanvas.width / bounds.width);
-      projectCrop.offsetY += (event.clientY - projectCrop.lastY) * (cropCanvas.height / bounds.height);
-      projectCrop.lastX = event.clientX;
-      projectCrop.lastY = event.clientY;
-      projectCrop.dirty = true;
-      drawProjectCrop();
-    });
-
-    const stopCropDrag = () => {
-      projectCrop.dragging = false;
-    };
-    cropCanvas?.addEventListener("pointerup", stopCropDrag);
-    cropCanvas?.addEventListener("pointercancel", stopCropDrag);
-    cropCanvas?.addEventListener("lostpointercapture", stopCropDrag);
-
-    document.getElementById("proj-crop-zoom")?.addEventListener("input", (event) => {
-      projectCrop.zoom = Number(event.target.value) || 1;
+    document.getElementById("proj-crop-zoom").addEventListener("input", (e) => {
+      projectCrop.zoom = Number(e.target.value) || 1;
       projectCrop.dirty = true;
       drawProjectCrop();
     });
 
-    document.getElementById("proj-crop-reset")?.addEventListener("click", () => {
+    document.getElementById("proj-crop-reset").addEventListener("click", () => {
       projectCrop.zoom = 1;
       projectCrop.offsetX = 0;
       projectCrop.offsetY = 0;
@@ -3172,218 +3575,224 @@ import {
       drawProjectCrop();
     });
 
-    document.getElementById("proj-cover-remove")?.addEventListener("click", () => {
+    document.getElementById("proj-cover-remove").addEventListener("click", () => {
       uploadedProjectCover = "";
-      document.getElementById("proj-cover").value = "";
       document.getElementById("proj-cover-file").value = "";
+      document.getElementById("proj-cover").value = "";
       setProjectCropSource("");
     });
 
-    document.getElementById("proj-wizard-next").addEventListener("click", advanceProjectWizard);
-    document.getElementById("proj-wizard-back").addEventListener("click", () => {
-      setProjectWizardStep(projectWizardStep - 1);
+    const cropCanvas = document.getElementById("proj-crop-canvas");
+    cropCanvas.addEventListener("pointerdown", (e) => {
+      if (!projectCrop.image) return;
+      projectCrop.dragging = true;
+      projectCrop.lastX = e.clientX;
+      projectCrop.lastY = e.clientY;
+      cropCanvas.setPointerCapture(e.pointerId);
     });
+    cropCanvas.addEventListener("pointermove", (e) => {
+      if (!projectCrop.dragging || !projectCrop.image) return;
+      const rect = cropCanvas.getBoundingClientRect();
+      projectCrop.offsetX += (e.clientX - projectCrop.lastX) * (cropCanvas.width / Math.max(1, rect.width));
+      projectCrop.offsetY += (e.clientY - projectCrop.lastY) * (cropCanvas.height / Math.max(1, rect.height));
+      projectCrop.lastX = e.clientX;
+      projectCrop.lastY = e.clientY;
+      projectCrop.dirty = true;
+      drawProjectCrop();
+    });
+    const endCropDrag = () => {
+      projectCrop.dragging = false;
+    };
+    cropCanvas.addEventListener("pointerup", endCropDrag);
+    cropCanvas.addEventListener("pointercancel", endCropDrag);
 
-    // Publicar / Editar Projecte a Firestore
-    const publishProjectForm = document.getElementById("publish-project-form");
-    const submitProjectBtn = document.getElementById("proj-wizard-submit");
-
-    // Eliminem 'required' natiu del navegador als camps del wizard perquè no bloquegi silenciosament des de passos ocults
-    publishProjectForm.querySelectorAll("[required]").forEach((el) => el.removeAttribute("required"));
-
-    const handlePublishProjectSubmit = async (e) => {
-      if (e) e.preventDefault();
-      if (projectWizardStep < 6) {
-        advanceProjectWizard();
-        return;
-      }
-
-      const errBox = document.getElementById("proj-form-error");
+    // PUBLICAR / EDITAR PROJECTE AL NÚVOL (FIRESTORE + STORAGE)
+    document.getElementById("publish-project-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
       if (projectMediaUploadPending) {
-        errBox.textContent = "Espera que s’acabin de carregar les fotografies.";
-        errBox.classList.remove("hidden");
+        showToast("Espera que s'acabin de processar les imatges seleccionades.");
         return;
       }
 
-      const title = document.getElementById("proj-title").value.trim();
-      const description = document.getElementById("proj-description").value.trim();
-      const briefing = document.getElementById("proj-briefing").value.trim();
-      const subject = document.getElementById("proj-subject").value.trim();
-      const professor = document.getElementById("proj-professor").value.trim();
-      const deadline = document.getElementById("proj-deadline").value;
-      const feedbackType = document.getElementById("proj-feedback-type").value.trim();
-
-      if (!title) {
-        setProjectWizardStep(1);
-        errBox.textContent = "Escriu el títol del projecte.";
-        errBox.classList.remove("hidden");
-        document.getElementById("proj-title").focus();
-        return;
-      }
-      if (!description || !briefing) {
-        setProjectWizardStep(3);
-        errBox.textContent = "Completa la descripció i els objectius del briefing.";
-        errBox.classList.remove("hidden");
-        return;
-      }
-      if (!subject || !professor || !deadline) {
-        setProjectWizardStep(4);
-        errBox.textContent = "Completa l'assignatura, el professor/a i la data d'entrega.";
-        errBox.classList.remove("hidden");
-        return;
-      }
-      if (!feedbackType) {
-        errBox.textContent = "Indica en què vols que es fixin els companys (camp obligatori).";
-        errBox.classList.remove("hidden");
-        document.getElementById("proj-feedback-type").focus();
-        return;
-      }
-      errBox.classList.add("hidden");
-
-      submitProjectBtn.disabled = true;
-      submitProjectBtn.textContent = "Publicant...";
+      const submitBtn = document.getElementById("proj-wizard-submit");
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Publicant...";
 
       try {
         const currentUser = getCurrentUser();
         const editId = document.getElementById("proj-edit-id").value;
-        const userTier = getAchievementTier(currentUser.points || 0);
-        const levelImageSize = { 1: "600px", 2: "900px", 3: "1200px", 4: "1600px" };
-        const automaticImageSize = levelImageSize[userTier.level] || "600px";
-
-        const aspectMap = {
-          portrait: "span-portrait",
-          tall: "span-tall",
-          square: "span-square",
-          landscape: "span-landscape",
-          wide: "span-wide"
-        };
-
-        const defaultCovers = {
-          Audiovisuals: "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?auto=format&fit=crop&w=900&q=80",
-          "Disseny gràfic": "https://images.unsplash.com/photo-1572044162444-ad60f128bdea?auto=format&fit=crop&w=900&q=80",
-          Fotografia: "https://images.unsplash.com/photo-1452587925148-ce544e77e70d?auto=format&fit=crop&w=900&q=80",
-          "UI/UX": "https://images.unsplash.com/photo-1581291518857-4e27b48ff24e?auto=format&fit=crop&w=900&q=80",
-          "3D": "https://images.unsplash.com/photo-1617791160505-6f00504e3519?auto=format&fit=crop&w=900&q=80",
-          "Realitat immersiva": "https://images.unsplash.com/photo-1593508512255-86ab42a8e620?auto=format&fit=crop&w=900&q=80"
-        };
-
-        const aspect = aspectMap[document.getElementById("proj-aspect").value] || "span-portrait";
+        const existingProject = editId ? state.projects.find((project) => project.id === editId) : null;
         const category = document.getElementById("proj-category").value;
-        const coverInput = document.getElementById("proj-cover").value.trim();
-        const teamType = document.getElementById("proj-team-type").value;
-        const seekingCollaborator = teamType === "group" && document.getElementById("proj-seeking-collaborator").checked;
-        const participantsRaw = document.getElementById("proj-participants").value.trim();
-        const participants = teamType === "group" && participantsRaw
-          ? participantsRaw.split(",").map((s) => s.trim()).filter(Boolean)
-          : [currentUser.name];
+        const aspect = document.getElementById("proj-aspect").value || "portrait";
 
-        let croppedCover = "";
         if (projectCrop.image && projectCrop.dirty) {
-          croppedCover = document.getElementById("proj-crop-canvas").toDataURL("image/jpeg", 0.85);
-          projectCrop.framed = true;
-        }
-
-        const rawCover = croppedCover || uploadedProjectCover || coverInput;
-        const uploadedCoverUrl = rawCover ? await uploadDataUrlIfNeeded(rawCover, "covers") : "";
-
-        const processedMediaImages = [];
-        for (const img of uploadedProjectMediaImages) {
-          const uploadedSrc = await uploadDataUrlIfNeeded(img.src, "gallery");
-          processedMediaImages.push({ ...img, src: uploadedSrc });
-        }
-
-        if (editId) {
-          const existing = state.projects.find((p) => p.id === editId);
-          const stageChanged = existing && existing.stage !== document.getElementById("proj-stage").value;
-          const projectUpdates = {
-            title,
-            category,
-            aspect,
-            description,
-            briefing,
-            cover: uploadedCoverUrl || existing?.cover || defaultCovers[category],
-            coverFramed: uploadedCoverUrl ? projectCrop.framed : isProjectCoverFramed(existing || {}),
-            subject,
-            professor,
-            year: document.getElementById("proj-year").value,
-            deadline,
-            stage: document.getElementById("proj-stage").value,
-            teamType,
-            participants,
-            mediaUrl: document.getElementById("proj-media-url").value.trim(),
-            mediaImages: processedMediaImages,
-            feedbackType,
-            questions: document.getElementById("proj-questions").value.trim(),
-            seekingCollaborator,
-            collaboratorRole: seekingCollaborator ? document.getElementById("proj-collab-role").value : "",
-            imageSize: automaticImageSize
-          };
-
-          await setDoc(doc(db, "projects", editId), projectUpdates, { merge: true });
-          if (stageChanged) {
-            await awardPoints(currentUser.id, `stage-${editId}-${projectUpdates.stage}`, 2, "Actualització de fase del projecte");
+          try {
+            uploadedProjectCover = document.getElementById("proj-crop-canvas").toDataURL("image/jpeg", 0.85);
+            projectCrop.dirty = false;
+            projectCrop.framed = true;
+          } catch (err) {
+            if (err.name === "SecurityError") {
+              showProjectCropError("Aquest servidor no permet desar l'enquadrament. Selecciona el fitxer des del teu ordinador.");
+              return;
+            }
           }
+        }
+
+        let coverInput = uploadedProjectCover || document.getElementById("proj-cover").value.trim();
+        if (coverInput.startsWith("data:image")) {
+          coverInput = await uploadDataUrlIfNeeded(coverInput, "covers");
+        }
+        const coverFramed = Boolean(uploadedProjectCover && projectCrop.framed);
+
+        const uploadedGallery = [];
+        for (const img of uploadedProjectMediaImages) {
+          const finalSrc = img.src.startsWith("data:image")
+            ? await uploadDataUrlIfNeeded(img.src, "gallery")
+            : img.src;
+          uploadedGallery.push({ ...img, src: finalSrc });
+        }
+
+        const teamType = document.getElementById("proj-team-type").value;
+        const rawParticipants = document.getElementById("proj-participants").value;
+        const participants =
+          teamType === "group" && rawParticipants.trim()
+            ? rawParticipants.split(",").map((s) => s.trim()).filter(Boolean)
+            : [currentUser.name];
+
+        const projectData = {
+          title: document.getElementById("proj-title").value.trim(),
+          category,
+          aspect: `span-${aspect}`,
+          cover: coverInput || "https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=900&q=80",
+          coverFramed,
+          description: document.getElementById("proj-description").value.trim(),
+          briefing: document.getElementById("proj-briefing").value.trim(),
+          subject: document.getElementById("proj-subject").value.trim(),
+          professor: document.getElementById("proj-professor").value.trim(),
+          year: document.getElementById("proj-year").value,
+          deadline: document.getElementById("proj-deadline").value,
+          stage: document.getElementById("proj-stage").value,
+          teamType,
+          participants,
+          seekingCollaborator: teamType === "group" && document.getElementById("proj-seeking-collaborator").checked,
+          collaboratorRole:
+            teamType === "group" && document.getElementById("proj-seeking-collaborator").checked
+              ? document.getElementById("proj-collab-role").value
+              : "",
+          mediaUrl: document.getElementById("proj-media-url").value.trim(),
+          mediaImages: uploadedGallery,
+          feedbackType: document.getElementById("proj-feedback-type").value.trim(),
+          questions: document.getElementById("proj-questions").value.trim()
+        };
+
+        if (existingProject) {
+          await updateDoc(doc(db, "projects", existingProject.id), projectData);
+          uploadedProjectCover = "";
+          uploadedProjectMediaImages = [];
+          setProjectCropSource("");
           closeModal("modal-publish-project");
+          navigateTo("project", existingProject.id);
           showToast("Projecte actualitzat correctament.");
           return;
         }
 
-        const projectId = "proj-" + Date.now();
-        const newProject = {
-          id: projectId,
-          title,
-          category,
-          aspect,
-          cover: uploadedCoverUrl || defaultCovers[category],
-          coverFramed: projectCrop.framed,
-          description,
-          briefing,
-          subject,
-          professor,
-          year: document.getElementById("proj-year").value,
-          deadline,
+        const newId = "proj-" + Date.now();
+        const newProj = {
+          id: newId,
+          ...projectData,
           createdAt: new Date().toISOString().split("T")[0],
           createdTimestamp: Date.now(),
-          stage: document.getElementById("proj-stage").value,
-          teamType,
-          participants,
           ownerId: currentUser.id,
-          status: "In progress",
-          mediaUrl: document.getElementById("proj-media-url").value.trim(),
-          mediaImages: processedMediaImages,
-          feedbackType,
-          questions: document.getElementById("proj-questions").value.trim(),
-          seekingCollaborator,
-          collaboratorRole: seekingCollaborator ? document.getElementById("proj-collab-role").value : "",
-          imageSize: automaticImageSize
+          status: "In progress"
         };
 
-        await setDoc(doc(db, "projects", projectId), newProject);
-        await setDoc(doc(db, "students", currentUser.id), {
-          projectsCount: (currentUser.projectsCount || 0) + 1
-        }, { merge: true });
-
-        await awardPoints(currentUser.id, `publish-${projectId}`, 10, `Nou projecte publicat: ${title}`);
-        if (newProject.questions && newProject.mediaUrl) {
-          await awardPoints(currentUser.id, `complete-${projectId}`, 5, "Briefing i material multimèdia complets");
-        }
-
+        await setDoc(doc(db, "projects", newId), newProj);
+        await setDoc(
+          doc(db, "students", currentUser.id),
+          { projectsCount: (currentUser.projectsCount || 0) + 1 },
+          { merge: true }
+        );
+        await awardPoints(currentUser.id, `publish-${newId}`, 10, `Nou projecte publicat: "${newProj.title}"`);
+        uploadedProjectCover = "";
+        uploadedProjectMediaImages = [];
+        setProjectCropSource("");
         closeModal("modal-publish-project");
-        navigateTo("project", projectId);
-        showToast("Projecte publicat correctament!");
+        navigateTo("project", newId);
+        showToast("Projecte publicat per a tota la comunitat ERAM!");
       } catch (err) {
-        console.error("Error publicant projecte:", err);
-        errBox.textContent = "Error publicant el projecte: " + (err.message || err);
-        errBox.classList.remove("hidden");
+        console.error(err);
+        showToast("Error en publicar el projecte: " + (err.message || "torna-ho a provar."));
       } finally {
-        submitProjectBtn.disabled = false;
-        submitProjectBtn.textContent = "Publicar projecte";
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Publicar projecte";
       }
-    };
+    });
 
-    publishProjectForm.addEventListener("submit", handlePublishProjectSubmit);
+    // EDITAR PERFIL
+    document.getElementById("edit-profile-subject-input").addEventListener("input", renderEditProfileSubjects);
+    document.getElementById("edit-profile-subject-list").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-remove-edit-subject]");
+      if (!btn) return;
+      editProfileSubjects = editProfileSubjects.filter((subject) => subject !== btn.dataset.removeEditSubject);
+      renderEditProfileSubjects();
+    });
+    document.getElementById("edit-profile-subject-options").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-add-edit-subject]");
+      if (!btn) return;
+      const subject = btn.dataset.addEditSubject;
+      if (subject && !editProfileSubjects.includes(subject)) {
+        editProfileSubjects.push(subject);
+        renderEditProfileSubjects();
+      }
+    });
 
-    // Publicar Posició Oberta a Firestore
+    document.getElementById("edit-profile-remove-avatar").addEventListener("click", async () => {
+      const student = getCurrentUser();
+      const color = document.getElementById("edit-profile-avatar-color").value;
+      const avatar = makeInitialAvatar(student.name, color);
+      await setDoc(doc(db, "students", student.id), { avatarColor: color, avatar }, { merge: true });
+      showToast("Fotografia substituïda per les inicials.");
+    });
+
+    document.getElementById("edit-profile-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const student = getCurrentUser();
+      const name = document.getElementById("edit-profile-name").value.trim();
+      const surname = document.getElementById("edit-profile-surname").value.trim();
+      const email = document.getElementById("edit-profile-email").value.trim().toLowerCase();
+      const color = document.getElementById("edit-profile-avatar-color").value;
+      const avatarFile = document.getElementById("edit-profile-avatar").files?.[0];
+      const errorEl = document.getElementById("edit-profile-error");
+
+      if (!name || !surname || !email) {
+        errorEl.textContent = "Omple el nom, cognoms i correu.";
+        errorEl.classList.remove("hidden");
+        return;
+      }
+
+      const fullName = `${name} ${surname}`;
+      let avatar = student.avatar;
+      if (avatarFile && avatarFile.type.startsWith("image/")) {
+        const reader = new FileReader();
+        avatar = await new Promise((resolve) => {
+          reader.onload = () => resolve(reader.result);
+          reader.readAsDataURL(avatarFile);
+        });
+        avatar = await uploadDataUrlIfNeeded(avatar, "avatars");
+      } else if (avatar?.startsWith("data:image/svg+xml")) {
+        avatar = makeInitialAvatar(fullName, color);
+      }
+
+      await setDoc(
+        doc(db, "students", student.id),
+        { name: fullName, email, avatarColor: color, avatar, interests: [...editProfileSubjects] },
+        { merge: true }
+      );
+      closeModal("modal-edit-profile");
+      showToast("Perfil actualitzat.");
+    });
+
+    // PUBLICAR POSICIÓ OBERTA
     document.getElementById("publish-position-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const currentUser = getCurrentUser();
@@ -3397,7 +3806,6 @@ import {
         compensation: document.getElementById("pos-compensation").value,
         startDate: document.getElementById("pos-start").value,
         endDate: document.getElementById("pos-end").value,
-        duration: "Segons calendari de producció",
         location: document.getElementById("pos-location").value,
         projectType: document.getElementById("pos-project-type").value,
         subject: document.getElementById("pos-subject").value.trim(),
@@ -3415,16 +3823,16 @@ import {
       showToast("Posició oberta publicada!");
     });
 
-    // Candidatura a Posició Oberta a Firestore
+    // CANDIDATURA A POSICIÓ OBERTA
     document.getElementById("apply-position-form").addEventListener("submit", async (e) => {
       e.preventDefault();
+      const currentUser = getCurrentUser();
       const posId = document.getElementById("apply-pos-id").value;
       const pos = state.positions.find((p) => p.id === posId);
-      const currentUser = getCurrentUser();
       if (!pos) return;
 
-      const updatedApplications = [
-        ...(Array.isArray(pos.applications) ? pos.applications : []),
+      const updatedApps = [
+        ...(pos.applications || []),
         {
           id: "app-" + Date.now(),
           applicantId: currentUser.id,
@@ -3435,18 +3843,12 @@ import {
         }
       ];
 
-      await updateDoc(doc(db, "positions", pos.id), { applications: updatedApplications });
-      await pushNotification(
-        pos.ownerId,
-        `${currentUser.name} s'ha postulat a "${pos.title}"`,
-        "positions",
-        pos.id
-      );
+      await updateDoc(doc(db, "positions", pos.id), { applications: updatedApps });
+      await pushNotification(pos.ownerId, `${currentUser.name} s'ha presentat a "${pos.title}"`, "positions", pos.id);
       closeModal("modal-apply-position");
-      showToast("Candidatura enviada correctament!");
+      showToast("Candidatura enviada correctament.");
     });
 
-    // Filtres de posicions
     [
       ["pos-filter-role", "role"],
       ["pos-filter-comp", "compensation"],
@@ -3459,490 +3861,123 @@ import {
       });
     });
 
-    document.getElementById("chat-search-input").addEventListener("input", () => renderMessagesView());
-  }
+    document.getElementById("chat-search-input").addEventListener("input", renderMessagesView);
 
-  function getInitials(name) {
-    return name
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part.charAt(0).toUpperCase())
-      .join("");
-  }
-
-  function makeInitialAvatar(name, color) {
-    const canvas = document.createElement("canvas");
-    canvas.width = 240;
-    canvas.height = 240;
-    const ctx = canvas.getContext("2d");
-    ctx.fillStyle = color;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "700 82px Inter, Arial, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(getInitials(name), 120, 120);
-    return canvas.toDataURL("image/png");
-  }
-
-  function showAuthPage() {
-    document.body.classList.remove("authenticated");
-    document.getElementById("auth-page").classList.remove("hidden");
-    document.getElementById("auth-start-view").classList.remove("hidden");
-    document.getElementById("auth-login-view").classList.add("hidden");
-    document.getElementById("auth-register-view").classList.add("hidden");
-    document.getElementById("auth-recovery-view").classList.add("hidden");
-  }
-
-  function enterAuthenticatedSession(userId) {
-    state.currentUserId = userId;
-    document.body.classList.add("authenticated");
-    document.getElementById("auth-page").classList.add("hidden");
-    updateHeaderChrome();
-    navigateTo("discover");
-  }
-
-  function bindAuthPageEvents() {
-    document.getElementById("auth-login-option").addEventListener("click", () => {
-      document.getElementById("auth-start-view").classList.add("hidden");
-      document.getElementById("auth-login-view").classList.remove("hidden");
+    document.querySelectorAll("[data-close-modal]").forEach((btn) => {
+      btn.addEventListener("click", () => closeModal(btn.dataset.closeModal));
     });
 
-    document.getElementById("auth-create-option").addEventListener("click", () => {
-      document.getElementById("auth-start-view").classList.add("hidden");
-      document.getElementById("auth-register-view").classList.remove("hidden");
-      setAuthRegisterStep(1);
+    document.querySelectorAll(".modal-backdrop").forEach((backdrop) => {
+      backdrop.addEventListener("click", (e) => {
+        if (e.target === backdrop) backdrop.classList.add("hidden");
+      });
     });
 
-    document.querySelectorAll("[data-auth-back]").forEach((button) => {
-      button.addEventListener("click", showAuthPage);
-    });
+    document.addEventListener("click", (e) => {
+      const closeModalEl = e.target.closest("[data-close-modal]");
+      if (closeModalEl) closeModal(closeModalEl.dataset.closeModal);
 
-    document.getElementById("auth-login-form").addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const email = document.getElementById("auth-login-email").value.trim().toLowerCase();
-      const password = document.getElementById("auth-login-password").value;
-      const error = document.getElementById("auth-login-error");
-
-      if (!email.endsWith("@campus.eram.cat") || !password) {
-        error.textContent = "Introdueix un correu @campus.eram.cat i la contrasenya.";
-        error.classList.remove("hidden");
+      const photoBtn = e.target.closest("[data-open-project-photo]");
+      if (photoBtn) {
+        const photoId = photoBtn.dataset.openProjectPhoto;
+        const projectId = photoBtn.dataset.projectId;
+        if (projectId && ui.activeProjectId !== projectId) navigateTo("project", projectId);
+        requestAnimationFrame(() => {
+          const photoEl = document.getElementById(`project-media-${photoId}`);
+          if (photoEl) {
+            photoEl.scrollIntoView({ behavior: "smooth", block: "center" });
+            photoEl.classList.add("reference-highlight");
+            setTimeout(() => photoEl.classList.remove("reference-highlight"), 2200);
+          }
+        });
         return;
       }
 
-      try {
-        error.classList.add("hidden");
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        enterAuthenticatedSession(userCredential.user.uid);
-      } catch (err) {
-        error.textContent = "El correu o la contrasenya són incorrectes.";
-        error.classList.remove("hidden");
-      }
-    });
-
-    const firstName = document.getElementById("auth-first-name");
-    const lastName = document.getElementById("auth-last-name");
-    const colorInput = document.getElementById("auth-avatar-color");
-    const initials = document.getElementById("auth-avatar-initials");
-    const previewImage = document.getElementById("auth-avatar-image");
-    let uploadedAvatar = "";
-
-    const refreshPreview = () => {
-      const name = `${firstName.value.trim()} ${lastName.value.trim()}`.trim();
-      initials.textContent = name ? getInitials(name) : "IE";
-      document.getElementById("auth-avatar-preview").style.background = colorInput.value;
-      document.getElementById("auth-avatar-color-value").textContent = colorInput.value.toUpperCase();
-    };
-
-    firstName.addEventListener("input", refreshPreview);
-    lastName.addEventListener("input", refreshPreview);
-    colorInput.addEventListener("input", refreshPreview);
-
-    document.getElementById("auth-avatar-upload").addEventListener("change", (event) => {
-      const file = event.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        uploadedAvatar = reader.result;
-        previewImage.src = uploadedAvatar;
-        previewImage.hidden = false;
-        initials.hidden = true;
-      };
-      reader.readAsDataURL(file);
-    });
-
-    const selectedSubjects = new Set();
-    let authRegisterStep = 1;
-    const studentRegisterStepLabels = [
-      "Pas 1 de 3 · Perfil",
-      "Pas 2 de 3 · Dades personals",
-      "Pas 3 de 3 · Grau i assignatures"
-    ];
-    const alumniRegisterStepLabels = ["Pas 1 de 2 · Perfil", "Pas 2 de 2 · Dades i graduació"];
-    const authRegisterError = document.getElementById("auth-form-error");
-    const suggestedContainer = document.getElementById("auth-suggested-subject-options");
-    const searchContainer = document.getElementById("auth-subject-search-results");
-    const selectedContainer = document.getElementById("auth-selected-subject-options");
-    const searchInput = document.getElementById("auth-subject-search-input");
-    const academicFields = document.getElementById("auth-academic-fields");
-    const studentAcademicTarget = document.getElementById("auth-student-academic-target");
-    const alumniAcademicTarget = document.getElementById("auth-alumni-academic-target");
-    const alumniAcademicHeading = document.getElementById("auth-alumni-academic-heading");
-    const degreeSelect = document.getElementById("auth-degree");
-    const yearSelect = document.getElementById("auth-year");
-    const subjectPicker = document.getElementById("auth-subject-picker");
-    const subjectsEmpty = document.getElementById("auth-subjects-empty");
-
-    const isAlumniSelected = () =>
-      document.querySelector("input[name='auth-role']:checked")?.value === "alumni";
-
-    const getAuthRegisterStepLabels = () =>
-      isAlumniSelected() ? alumniRegisterStepLabels : studentRegisterStepLabels;
-
-    const updateAcademicFieldsLocation = () => {
-      const alumni = isAlumniSelected();
-      (alumni ? alumniAcademicTarget : studentAcademicTarget).append(academicFields);
-      alumniAcademicHeading.classList.toggle("hidden", !alumni);
-    };
-
-    const setAuthRegisterStep = (step) => {
-      const stepLabels = getAuthRegisterStepLabels();
-      authRegisterStep = Math.max(1, Math.min(stepLabels.length, step));
-
-      document.querySelectorAll("[data-auth-register-step]").forEach((section) => {
-        section.hidden = Number(section.dataset.authRegisterStep) !== authRegisterStep;
-      });
-
-      document.querySelectorAll("[data-auth-register-progress]").forEach((indicator) => {
-        const indicatorStep = Number(indicator.dataset.authRegisterProgress);
-        indicator.hidden = indicatorStep > stepLabels.length;
-        indicator.classList.toggle("is-active", indicatorStep <= authRegisterStep);
-        if (indicatorStep === authRegisterStep) indicator.setAttribute("aria-current", "step");
-        else indicator.removeAttribute("aria-current");
-      });
-
-      document.getElementById("auth-register-step-label").textContent = stepLabels[authRegisterStep - 1];
-      document.getElementById("auth-register-back").classList.toggle("hidden", authRegisterStep === 1);
-      document.getElementById("auth-register-next").classList.toggle("hidden", authRegisterStep === stepLabels.length);
-      document.getElementById("auth-register-submit").classList.toggle("hidden", authRegisterStep !== stepLabels.length);
-      authRegisterError.classList.add("hidden");
-      document.getElementById("auth-register-view").scrollTop = 0;
-    };
-
-    const validateAuthRegisterStep = () => {
-      authRegisterError.classList.add("hidden");
-      const currentStep = document.querySelector(`[data-auth-register-step="${authRegisterStep}"]`);
-      const invalidField = [...currentStep.querySelectorAll("input[required], select[required], textarea[required]")].find(
-        (field) => !field.checkValidity()
-      );
-      if (invalidField) {
-        invalidField.reportValidity();
-        return false;
-      }
-
-      if (authRegisterStep === 2) {
-        const email = document.getElementById("auth-email").value.trim().toLowerCase();
-        const password = document.getElementById("auth-password").value;
-        const passwordConfirm = document.getElementById("auth-password-confirm").value;
-
-        if (!email.endsWith("@campus.eram.cat")) {
-          authRegisterError.textContent = "Només es permet el correu institucional @campus.eram.cat.";
-          authRegisterError.classList.remove("hidden");
-          document.getElementById("auth-email").focus();
-          return false;
+      const projCard = e.target.closest("[data-open-project]");
+      if (projCard) {
+        const commentId = projCard.dataset.openProjectComment;
+        navigateTo("project", projCard.dataset.openProject);
+        if (commentId) {
+          requestAnimationFrame(() => {
+            const commentEl = document.getElementById(`project-comment-${commentId}`);
+            if (commentEl) {
+              commentEl.scrollIntoView({ behavior: "smooth", block: "center" });
+              commentEl.classList.add("reference-highlight");
+              setTimeout(() => commentEl.classList.remove("reference-highlight"), 2200);
+            }
+          });
         }
-        if (password !== passwordConfirm) {
-          authRegisterError.textContent = "Les contrasenyes no coincideixen.";
-          authRegisterError.classList.remove("hidden");
-          document.getElementById("auth-password-confirm").focus();
-          return false;
-        }
-      }
-      return true;
-    };
-
-    const getAllProgramSubjects = (degree) => {
-      const program = REGISTRATION_PROGRAMS[degree];
-      return program ? [...new Set([...Object.values(program.years).flat(), ...program.electives])] : [];
-    };
-
-    const getSelectableProgramSubjects = (degree) => {
-      const subjects = getAllProgramSubjects(degree);
-      if (degree === "GCAM") subjects.push(...getAllProgramSubjects("DCAM"));
-      return [...new Set(subjects)];
-    };
-
-    const getRegistrationSubjects = () => {
-      const program = REGISTRATION_PROGRAMS[degreeSelect.value];
-      return !program || isAlumniSelected() ? [] : program.years[yearSelect.value] || [];
-    };
-
-    const updateSubjectPickerVisibility = () => {
-      const degreeSelected = Boolean(degreeSelect.value);
-      const yearSelected = Boolean(yearSelect.value);
-      const alumni = isAlumniSelected();
-      const ready = !alumni && degreeSelected && yearSelected;
-
-      subjectPicker.hidden = !ready;
-      subjectsEmpty.classList.toggle("hidden", ready || alumni);
-
-      if (!degreeSelected) {
-        subjectsEmpty.textContent = "Tria primer el grau i el curs per veure les assignatures del pla d'estudis.";
-      } else if (!yearSelected) {
-        subjectsEmpty.textContent = "Selecciona primer el curs per veure les assignatures del pla d'estudis.";
-      }
-
-      document.getElementById("auth-subject-search-help").textContent =
-        degreeSelect.value === "GCAM"
-          ? "També pots cercar assignatures en anglès."
-          : "La cerca només inclou assignatures del grau seleccionat.";
-    };
-
-    const updateYearOptions = (selectedValue = "") => {
-      const alumni = isAlumniSelected();
-      const placeholder = alumni ? "Selecciona l'any de finalització" : "Selecciona el curs";
-      const options = alumni
-        ? [
-            ["Graduat 2026", "Graduat 2026"],
-            ["Graduat 2025", "Graduat 2025"],
-            ["Graduat 2024", "Graduat 2024"],
-            ["Graduat abans de 2024", "Graduat abans de 2024"]
-          ]
-        : Object.keys(REGISTRATION_PROGRAMS.GCAM.years).map((year) => [year, year]);
-
-      yearSelect.innerHTML =
-        `<option value="" disabled>${placeholder}</option>` +
-        options.map(([value, label]) => `<option value="${value}">${label}</option>`).join("");
-      yearSelect.disabled = !degreeSelect.value;
-      yearSelect.value = options.some(([value]) => value === selectedValue) ? selectedValue : "";
-    };
-
-    const renderSubjectOptions = (container, subjects) => {
-      container.innerHTML = subjects
-        .map((subject) => {
-          const checked = selectedSubjects.has(subject);
-          return `<label class="pill-tag auth-subject-pill ${checked ? "selected" : ""}"><input type="checkbox" value="${escapeHtml(subject)}" ${checked ? "checked" : ""} /> ${escapeHtml(subject)}</label>`;
-        })
-        .join("");
-
-      container.querySelectorAll("input").forEach((input) => {
-        input.addEventListener("change", () => {
-          if (input.checked) selectedSubjects.add(input.value);
-          else selectedSubjects.delete(input.value);
-          renderAllSubjectLists();
-        });
-      });
-    };
-
-    const renderSuggestedSubjects = () => {
-      const subjects = getRegistrationSubjects();
-      document.getElementById("auth-suggested-subjects-title").textContent = "Assignatures del curs";
-      renderSubjectOptions(suggestedContainer, subjects);
-    };
-
-    const renderSearchResults = () => {
-      const query = searchInput.value.trim().toLowerCase();
-      if (!query) {
-        searchContainer.innerHTML = "";
-        return;
-      }
-      const suggestedSubjects = new Set(getRegistrationSubjects());
-      const matches = getSelectableProgramSubjects(degreeSelect.value)
-        .filter((subject) => !suggestedSubjects.has(subject))
-        .filter((subject) => subject.toLowerCase().includes(query))
-        .slice(0, 20);
-      renderSubjectOptions(searchContainer, matches);
-    };
-
-    const renderSelectedSubjects = () => {
-      selectedContainer.innerHTML = [...selectedSubjects]
-        .map(
-          (subject) =>
-            `<label class="pill-tag auth-subject-pill selected"><input type="checkbox" value="${escapeHtml(subject)}" checked /> ${escapeHtml(subject)}</label>`
-        )
-        .join("");
-
-      selectedContainer.querySelectorAll("input").forEach((input) => {
-        input.addEventListener("change", () => {
-          selectedSubjects.delete(input.value);
-          renderAllSubjectLists();
-        });
-      });
-    };
-
-    const renderAllSubjectLists = () => {
-      renderSuggestedSubjects();
-      renderSearchResults();
-      renderSelectedSubjects();
-    };
-
-    searchInput.addEventListener("input", renderSearchResults);
-
-    degreeSelect.addEventListener("change", () => {
-      const previousYear = yearSelect.value;
-      updateYearOptions(previousYear);
-      const selectableSubjects = new Set(getSelectableProgramSubjects(degreeSelect.value));
-      selectedSubjects.forEach((subject) => {
-        if (!selectableSubjects.has(subject)) selectedSubjects.delete(subject);
-      });
-      searchInput.value = "";
-      updateSubjectPickerVisibility();
-      renderAllSubjectLists();
-    });
-
-    yearSelect.addEventListener("change", () => {
-      searchInput.value = "";
-      updateSubjectPickerVisibility();
-      renderAllSubjectLists();
-    });
-
-    updateSubjectPickerVisibility();
-    renderAllSubjectLists();
-    setAuthRegisterStep(1);
-
-    document.getElementById("auth-register-next").addEventListener("click", () => {
-      if (validateAuthRegisterStep()) setAuthRegisterStep(authRegisterStep + 1);
-    });
-
-    document.getElementById("auth-register-back").addEventListener("click", () => {
-      setAuthRegisterStep(authRegisterStep - 1);
-    });
-
-    document.querySelectorAll("input[name='auth-role']").forEach((radio) => {
-      radio.addEventListener("change", () => {
-        const alumni = radio.value === "alumni" && radio.checked;
-        if (alumni) selectedSubjects.clear();
-        updateAcademicFieldsLocation();
-        document.getElementById("auth-year-label").textContent = alumni ? "Any de finalització *" : "Curs actual *";
-        document.getElementById("auth-subjects-label").textContent = alumni ? "Assignatures cursades" : "Assignatures matriculades";
-        updateYearOptions();
-        searchInput.value = "";
-        updateSubjectPickerVisibility();
-        renderAllSubjectLists();
-        setAuthRegisterStep(authRegisterStep);
-      });
-    });
-
-    document.getElementById("auth-register-form").addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (authRegisterStep === 1) {
-        if (validateAuthRegisterStep()) setAuthRegisterStep(2);
-        return;
-      }
-      if (authRegisterStep === 2 && !isAlumniSelected()) {
-        if (validateAuthRegisterStep()) setAuthRegisterStep(3);
-        return;
-      }
-      if (!validateAuthRegisterStep()) return;
-
-      const fName = document.getElementById("auth-first-name").value.trim();
-      const lName = document.getElementById("auth-last-name").value.trim();
-      const email = document.getElementById("auth-email").value.trim().toLowerCase();
-      const password = document.getElementById("auth-password").value;
-      const errBox = document.getElementById("auth-form-error");
-      const fullName = `${fName} ${lName}`.trim();
-
-      try {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const avatarUrl = uploadedAvatar
-          ? await uploadDataUrlIfNeeded(uploadedAvatar, "avatars")
-          : makeInitialAvatar(fullName, colorInput.value);
-
-        const studentData = {
-          id: userCredential.user.uid,
-          name: fullName,
-          email,
-          role: document.querySelector("input[name='auth-role']:checked").value,
-          degree: degreeSelect.value,
-          year: yearSelect.value,
-          interests: [...selectedSubjects],
-          avatar: avatarUrl,
-          avatarColor: colorInput.value,
-          points: 10,
-          projectsCount: 0,
-          commentsCount: 0,
-          usefulCommentsCount: 0,
-          secondedCount: 0
-        };
-        await setDoc(doc(db, "students", userCredential.user.uid), studentData);
-        enterAuthenticatedSession(userCredential.user.uid);
-        showToast(`Benvingut/da, ${fullName}!`);
-      } catch (err) {
-        errBox.textContent = "Error de registre: " + err.message;
-        errBox.classList.remove("hidden");
-      }
-    });
-
-    document.getElementById("logout-btn").addEventListener("click", async () => {
-      await signOut(auth);
-      closeAllPopovers();
-      showAuthPage();
-    });
-
-    document.getElementById("auth-forgot-password").addEventListener("click", () => {
-      document.getElementById("auth-login-view").classList.add("hidden");
-      document.getElementById("auth-recovery-view").classList.remove("hidden");
-      document.getElementById("auth-recovery-form").classList.remove("hidden");
-      document.getElementById("auth-reset-form").classList.add("hidden");
-      document.getElementById("auth-recovery-email").value = document.getElementById("auth-login-email").value;
-    });
-
-    document.getElementById("auth-recovery-form").addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const email = document.getElementById("auth-recovery-email").value.trim().toLowerCase();
-      const error = document.getElementById("auth-recovery-error");
-      if (!email.endsWith("@campus.eram.cat")) {
-        error.textContent = "Introdueix el teu correu @campus.eram.cat.";
-        error.classList.remove("hidden");
         return;
       }
 
-      try {
-        error.classList.add("hidden");
-        await sendPasswordResetEmail(auth, email);
-        showAuthPage();
-        showToast("S'ha enviat un correu de recuperació a la teva bústia.");
-      } catch (err) {
-        error.textContent = "No s'ha pogut enviar el correu: " + err.message;
-        error.classList.remove("hidden");
+      const profileEl = e.target.closest("[data-open-profile]");
+      if (profileEl) {
+        navigateTo("profile", profileEl.dataset.openProfile);
+        return;
+      }
+
+      const contactOwner = e.target.closest("[data-contact-owner]");
+      if (contactOwner) {
+        startOrOpenConversation(contactOwner.dataset.contactOwner);
+      }
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && e.target.matches(".masonry-card[data-open-project]")) {
+        navigateTo("project", e.target.dataset.openProject);
+      }
+      if (e.key === "Escape") {
+        closeAllPopovers();
+        document.querySelectorAll(".modal-backdrop").forEach((m) => m.classList.add("hidden"));
       }
     });
   }
 
-  // ========================================================================
-  // 13. ARRANQUEM L'APLICACIÓ AMB FIREBASE AUTH + FIRESTORE
-  // ========================================================================
-  bindAuthPageEvents();
-  bindGlobalEvents();
-  startRealtimeSync();
+  window.addEventListener("resize", updateProjectDetailStickyTop);
 
-  onAuthStateChanged(auth, async (user) => {
-    if (user) {
-      await seedInitialDataIfNeeded();
-      const studentRef = doc(db, "students", user.uid);
-      const snap = await getDoc(studentRef);
-      if (!snap.exists()) {
-        const fallbackName = user.email?.split("@")[0] || "Estudiant ERAM";
-        await setDoc(studentRef, {
-          id: user.uid,
-          name: fallbackName,
-          email: user.email || "",
-          year: "1r Curs",
-          avatar: makeInitialAvatar(fallbackName, "#8f7cf6"),
-          avatarColor: "#8f7cf6",
-          points: 10,
-          projectsCount: 0,
-          commentsCount: 0,
-          usefulCommentsCount: 0,
-          secondedCount: 0
-        });
+  // =========================================================================
+  // 14. PUNT D'ENTRADA PRINCIPAL
+  // =========================================================================
+  function init() {
+    setupAuthFlow();
+    bindEvents();
+
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        state.currentUserId = user.uid;
+        await seedInitialDataIfNeeded();
+        startRealtimeSync();
+
+        const userSnap = await getDoc(doc(db, "students", user.uid));
+        if (!userSnap.exists()) {
+          const fallbackName = user.displayName || user.email?.split("@")[0] || "Estudiant ERAM";
+          await setDoc(doc(db, "students", user.uid), {
+            id: user.uid,
+            name: fallbackName,
+            email: user.email || "",
+            role: "student",
+            year: "1r Curs",
+            avatarColor: "#8f7cf6",
+            avatar: makeInitialAvatar(fallbackName, "#8f7cf6"),
+            bio: "Estudiant a l'ERAM.",
+            interests: [],
+            points: 0,
+            projectsCount: 0,
+            commentsCount: 0,
+            usefulCommentsCount: 0,
+            secondedCount: 0
+          });
+        }
+
+        enterApp();
+      } else {
+        state.currentUserId = null;
+        document.body.classList.remove("authenticated");
+        const authPage = document.getElementById("auth-page");
+        if (authPage) authPage.classList.remove("hidden");
       }
-      enterAuthenticatedSession(user.uid);
-    } else {
-      state.currentUserId = null;
-      showAuthPage();
-    }
-  });
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", init);
 })();
