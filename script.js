@@ -400,7 +400,7 @@ import {
         title: "Curtmetratge documental",
         category: "Audiovisuals",
         aspect: "span-tall",
-        cover: "https://images.unsplash.com/photo-1485846234645-262644f84728?auto=format&fit=crop&w=900&q=80",
+        cover: "ac0f2b80c7e7992a8153cea651a509b2.jpg",
         description: "Curtmetratge documental d'observació sobre la vida quotidiana d'un barri, rodat amb llum natural i so ambient.",
         briefing: "Plans fixos llargs, entrevistes curtes i paisatge sonor enregistrat in situ.",
         subject: "Direcció audiovisual",
@@ -625,10 +625,31 @@ import {
     }
   }
 
+  async function updateDefaultProjectCoverIfUnchanged() {
+    const defaultProject = INITIAL_STATE.projects.find((project) => project.id === "proj-1");
+    if (!defaultProject) return;
+
+    const projectRef = doc(db, "projects", defaultProject.id);
+    const projectSnap = await getDoc(projectRef);
+    if (!projectSnap.exists()) return;
+
+    const previousCovers = [
+      "https://images.unsplash.com/photo-1485846234645-262644f84728?auto=format&fit=crop&w=900&q=80",
+      "https://i.pinimg.com/1200x/ac/0f/2b/ac0f2b80c7e7992a8153cea651a509b2"
+    ];
+    if (previousCovers.includes(projectSnap.data().cover)) {
+      await updateDoc(projectRef, { cover: defaultProject.cover });
+    }
+  }
+
   async function seedInitialDataIfNeeded() {
     const seededFlag = localStorage.getItem("eram_firestore_seeded_v1");
-    if (seededFlag) return;
     try {
+      if (seededFlag) {
+        await updateDefaultProjectCoverIfUnchanged();
+        return;
+      }
+
       const batch = writeBatch(db);
       INITIAL_STATE.students.forEach((s) => {
         const avatar = /^https?:\/\//i.test(s.avatar || "")
@@ -1213,6 +1234,10 @@ import {
 
   function navigateTo(route, payloadId = null) {
     ui.route = route;
+    document.querySelector(".top-nav")?.classList.toggle(
+      "search-hidden",
+      route === "leaderboard" || route === "messages"
+    );
     if (route === "discover") resetDiscoveryFilters();
     if (route === "project" && payloadId) ui.activeProjectId = payloadId;
     if (route === "profile") {
@@ -1559,8 +1584,8 @@ import {
                 <div class="detail-project-badges">
                   <span class="pill-tag">${escapeHtml(proj.category)}</span>
                   ${proj.stage ? `<span class="pill-tag">${escapeHtml(STAGE_LABELS[proj.stage] || proj.stage)}</span>` : ""}
-                  ${isOwner ? `<span class="pill-tag ${proj.status === "In progress" ? "" : "success"}">${escapeHtml(proj.status)}</span>` : ""}
                 </div>
+                <span class="pill-tag ${proj.status === "In progress" ? "" : "success"}">${escapeHtml(proj.status)}</span>
               </div>
 
               <h1 class="detail-project-title">${escapeHtml(proj.title)}</h1>
@@ -2893,6 +2918,55 @@ import {
     });
   }
 
+  function positionPopoverUnderlay() {
+    const underlay = document.getElementById("popover-underlay");
+    const menu = document.querySelector(".popover-menu:not(.hidden)");
+    const trigger = menu && document.getElementById(menu.dataset.popoverTriggerId);
+    const anchor = menu?.closest(".dropdown-anchor");
+    if (!menu || !trigger || !anchor) return;
+
+    menu.style.position = "absolute";
+    menu.style.right = "auto";
+    menu.style.left = "0px";
+    menu.style.top = "0px";
+
+    const menuRect = menu.getBoundingClientRect();
+    const triggerRect = trigger.getBoundingClientRect();
+    const anchorRect = anchor.getBoundingClientRect();
+    const margin = 12;
+    const viewportWidth = document.documentElement.clientWidth;
+    const viewportHeight = window.innerHeight;
+    const maxLeft = Math.max(margin, viewportWidth - menuRect.width - margin);
+    const preferredLeft =
+      menu.id === "platform-dropdown"
+        ? triggerRect.left
+        : triggerRect.right - menuRect.width;
+    const left = Math.max(margin, Math.min(preferredLeft, maxLeft));
+    const maxTop = Math.max(margin, viewportHeight - menuRect.height - margin);
+    const preferredTop = triggerRect.bottom + 10;
+    const aboveTop = triggerRect.top - menuRect.height - 10;
+    const top =
+      preferredTop <= maxTop
+        ? preferredTop
+        : aboveTop >= margin
+          ? aboveTop
+          : maxTop;
+
+    Object.assign(menu.style, {
+      left: `${left - anchorRect.left}px`,
+      top: `${top - anchorRect.top}px`
+    });
+    if (!underlay) return;
+
+    const rect = menu.getBoundingClientRect();
+    Object.assign(underlay.style, {
+      top: `${rect.top}px`,
+      left: `${rect.left}px`,
+      width: `${rect.width}px`,
+      height: `${rect.height}px`
+    });
+  }
+
   function togglePopover(menuId, triggerId) {
     const menu = document.getElementById(menuId);
     const trigger = document.getElementById(triggerId);
@@ -2901,15 +2975,10 @@ import {
     closeAllPopovers();
     if (isHidden) {
       menu.classList.remove("hidden");
+      menu.dataset.popoverTriggerId = triggerId;
       trigger.setAttribute("aria-expanded", "true");
       if (underlay) {
-        const rect = menu.getBoundingClientRect();
-        Object.assign(underlay.style, {
-          top: `${rect.top}px`,
-          left: `${rect.left}px`,
-          width: `${rect.width}px`,
-          height: `${rect.height}px`
-        });
+        positionPopoverUnderlay();
         underlay.classList.remove("hidden");
       }
     }
@@ -4251,6 +4320,14 @@ import {
   }
 
   window.addEventListener("resize", updateProjectDetailStickyTop);
+  const repositionPopover = () => requestAnimationFrame(positionPopoverUnderlay);
+  window.addEventListener("resize", repositionPopover);
+  window.addEventListener("orientationchange", repositionPopover);
+  window.visualViewport?.addEventListener("resize", repositionPopover);
+  window.visualViewport?.addEventListener("scroll", repositionPopover);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) repositionPopover();
+  });
 
   // =========================================================================
   // 14. PUNT D'ENTRADA PRINCIPAL
