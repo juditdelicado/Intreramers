@@ -539,13 +539,24 @@
         <aside class="chat-sidebar" id="chat-sidebar">
           <div class="chat-sidebar-header">
             <h2>Missatges</h2>
-            <input type="search" id="chat-search-input" class="chat-search" placeholder="Cercar conversa..." aria-label="Cercar conversa" />
+            <input
+              type="search"
+              id="chat-search-input"
+              class="chat-search"
+              placeholder="Cercar usuaris o converses..."
+              aria-label="Cercar usuaris o converses"
+              autocomplete="off"
+              aria-autocomplete="list"
+              aria-expanded="false"
+              aria-controls="chat-user-search-results"
+            />
+            <div class="chat-user-search-results hidden" id="chat-user-search-results" role="listbox"></div>
           </div>
           <div class="conversation-list" id="conversation-list"></div>
         </aside>
         <div class="chat-main" id="chat-main-pane">
           <div class="chat-empty-placeholder">
-            <p>Selecciona una conversa o respon privadament a un comentari d'un projecte.</p>
+            <p>Selecciona una conversa o cerca un usuari per iniciar un xat.</p>
           </div>
         </div>
       </div>

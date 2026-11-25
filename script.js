@@ -3255,6 +3255,52 @@ import {
       .join("");
   }
 
+  function renderChatUserSearchResults() {
+    const input = document.getElementById("chat-search-input");
+    const results = document.getElementById("chat-user-search-results");
+    if (!input || !results) return;
+    const query = input.value.trim().toLocaleLowerCase();
+    if (!query) {
+      results.innerHTML = "";
+      results.classList.add("hidden");
+      input.setAttribute("aria-expanded", "false");
+      return;
+    }
+
+    const currentUser = getCurrentUser();
+    const matches = state.students
+      .filter(
+        (student) =>
+          student.id !== currentUser.id &&
+          typeof student.name === "string" &&
+          student.name.toLocaleLowerCase().includes(query)
+      )
+      .sort((a, b) => {
+        const aStartsWithQuery = a.name.toLocaleLowerCase().startsWith(query);
+        const bStartsWithQuery = b.name.toLocaleLowerCase().startsWith(query);
+        if (aStartsWithQuery !== bStartsWithQuery) return aStartsWithQuery ? -1 : 1;
+        return a.name.localeCompare(b.name, "ca");
+      })
+      .slice(0, 8);
+
+    results.innerHTML = matches.length
+      ? matches
+          .map(
+            (student) => `
+              <button type="button" class="chat-user-suggestion" data-start-chat-user="${escapeHtml(student.id)}" role="option">
+                <img src="${escapeHtml(student.avatar || "")}" alt="" />
+                <span class="chat-user-suggestion-info">
+                  <strong>${escapeHtml(student.name)}</strong>
+                  <small>${escapeHtml(student.year || "")}</small>
+                </span>
+              </button>`
+          )
+          .join("")
+      : `<div class="chat-user-search-empty">No s'han trobat usuaris.</div>`;
+    results.classList.remove("hidden");
+    input.setAttribute("aria-expanded", "true");
+  }
+
   function bindConversationList(listContainer) {
     listContainer.querySelectorAll("[data-select-conv]").forEach((item) => {
       item.addEventListener("click", () => {
@@ -3384,7 +3430,7 @@ import {
     const selectedConversationId = ui.activeConversationId;
     const activeConv = myConvs.find((c) => c.id === selectedConversationId) || myConvs[0];
     if (!activeConv) {
-      mainPane.innerHTML = `<div class="chat-empty-placeholder"><p>Encara no tens converses actives. Pots obrir un xat des de qualsevol projecte o posició oberta.</p></div>`;
+      mainPane.innerHTML = `<div class="chat-empty-placeholder"><p>Cerca un usuari per iniciar un xat.</p></div>`;
       return;
     }
 
@@ -5572,7 +5618,24 @@ import {
       });
     });
 
-    document.getElementById("chat-search-input").addEventListener("input", renderMessagesView);
+    const chatSearchInput = document.getElementById("chat-search-input");
+    chatSearchInput.addEventListener("input", () => {
+      renderMessagesView();
+      renderChatUserSearchResults();
+    });
+    document.getElementById("chat-user-search-results").addEventListener("click", (e) => {
+      const userButton = e.target.closest("[data-start-chat-user]");
+      if (!userButton) return;
+      const userId = userButton.dataset.startChatUser;
+      chatSearchInput.value = "";
+      renderChatUserSearchResults();
+      void startOrOpenConversation(userId);
+    });
+    document.addEventListener("click", (e) => {
+      if (e.target.closest(".chat-sidebar-header")) return;
+      document.getElementById("chat-user-search-results").classList.add("hidden");
+      chatSearchInput.setAttribute("aria-expanded", "false");
+    });
 
     document.querySelectorAll("[data-close-modal]").forEach((btn) => {
       btn.addEventListener("click", () => closeModal(btn.dataset.closeModal));
