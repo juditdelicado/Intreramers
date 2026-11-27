@@ -2479,8 +2479,32 @@
   }
   
   .chat-sidebar-header h2 {
-    margin: 0 0 10px;
+    margin: 0;
     font-size: 17px;
+  }
+
+  .chat-sidebar-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .chat-archive-toggle {
+    padding: 5px 9px;
+    border: 1px solid var(--border-light);
+    border-radius: 9999px;
+    background: #fff;
+    color: var(--text-secondary);
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .chat-archive-toggle[aria-pressed="true"] {
+    border-color: var(--text-primary);
+    background: var(--text-primary);
+    color: #fff;
   }
   
   .chat-search {
@@ -2563,6 +2587,7 @@
   }
   
   .conv-item {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -2606,6 +2631,21 @@
     display: block;
     font-size: 13.5px;
   }
+
+  .conv-title-row {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .conv-title-row strong {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   
   .conv-info p {
     margin: 2px 0 0;
@@ -2639,6 +2679,92 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
+  }
+
+  .chat-user-header {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .chat-user-heading {
+    min-width: 0;
+  }
+
+  .chat-user-heading strong,
+  .chat-user-heading span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .chat-conversation-menu-wrap {
+    position: relative;
+    flex: 0 0 auto;
+  }
+
+  .chat-conversation-menu-trigger {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-secondary);
+    opacity: 0.72;
+    transition: background-color var(--transition-fast), color var(--transition-fast), opacity var(--transition-fast);
+  }
+
+  .chat-conversation-menu-trigger:hover,
+  .chat-conversation-menu-trigger[aria-expanded="true"] {
+    background: var(--bg-subtle);
+    color: var(--text-primary);
+    opacity: 1;
+  }
+
+  .chat-conversation-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 5;
+    display: grid;
+    width: max-content;
+    min-width: 190px;
+    gap: 2px;
+    padding: 5px;
+    border: 1px solid var(--border-light);
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 12px 30px rgba(22, 22, 22, 0.16);
+  }
+
+  .chat-conversation-menu.hidden {
+    display: none;
+  }
+
+  .chat-conversation-menu button {
+    padding: 9px 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 12px;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .chat-conversation-menu button:hover,
+  .chat-conversation-menu button:focus-visible {
+    background: var(--bg-subtle);
+  }
+
+  .chat-conversation-menu button[data-conversation-action="delete"]:hover {
+    background: #fff1f0;
+    color: var(--accent-urgent);
   }
 
   .chat-messages-scroll {
@@ -4032,6 +4158,45 @@
 .modal-suggestion-btn:hover {
   background: var(--bg-surface-hover);
   color: var(--text-primary);
+}
+
+.modal-suggestion-owl {
+  position: fixed;
+  z-index: 1;
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  padding: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 8px 24px rgba(22, 22, 22, 0.2);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  transition: opacity 140ms ease, visibility 140ms ease, scale 140ms ease;
+  scale: 0.85;
+}
+
+.modal-suggestion-owl img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.modal-suggestion-owl.is-visible,
+.modal-suggestion-owl:focus-visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  scale: 1;
+}
+
+.modal-suggestion-owl:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 3px;
 }
 
 @media (max-width: 640px) {

@@ -2921,6 +2921,7 @@ import {
   const conversationDrafts = new Map();
   const typingIdleTimers = new Map();
   const typingLastUpdateAt = new Map();
+  let showArchivedConversations = false;
 
   function clearLocalTypingState(conversationId) {
     const timer = typingIdleTimers.get(conversationId);
@@ -3011,11 +3012,133 @@ import {
         messages: []
       };
       await setDoc(doc(db, "conversations", convId), conv);
+    } else {
+      const updates = {};
+      if (conv.hiddenFor?.includes(currentUser.id)) {
+        updates.hiddenFor = arrayRemove(currentUser.id);
+      }
+      if (conv.archivedFor?.includes(currentUser.id)) {
+        updates.archivedFor = arrayRemove(currentUser.id);
+      }
+      if (Object.keys(updates).length) {
+        try {
+          await updateDoc(doc(db, "conversations", conv.id), updates);
+          if (updates.hiddenFor) {
+            conv.hiddenFor = conv.hiddenFor.filter((userId) => userId !== currentUser.id);
+          }
+          if (updates.archivedFor) {
+            conv.archivedFor = conv.archivedFor.filter((userId) => userId !== currentUser.id);
+          }
+        } catch (error) {
+          console.error("No s'ha pogut recuperar la conversa:", error);
+          showToast("No s'ha pogut obrir aquesta conversa.");
+          return;
+        }
+      }
     }
 
+    showArchivedConversations = false;
+    updateConversationArchiveToggle();
     pendingMessageReference = contextRef;
     ui.activeConversationId = conv.id;
     navigateTo("messages", conv.id);
+  }
+
+  function updateConversationArchiveToggle() {
+    const toggle = document.getElementById("chat-archive-toggle");
+    const title = document.getElementById("chat-list-title");
+    if (toggle) {
+      toggle.setAttribute("aria-pressed", String(showArchivedConversations));
+      toggle.textContent = showArchivedConversations ? "Tornar als xats" : "Arxivats";
+    }
+    if (title) title.textContent = showArchivedConversations ? "Arxivats" : "Missatges";
+  }
+
+  function getConversationSettingsMarkup(conversation, userId) {
+    const isArchived = conversation.archivedFor?.includes(userId) === true;
+    const isMuted = conversation.mutedFor?.includes(userId) === true;
+    return `
+      <button type="button" role="menuitem" data-conversation-action="archive" data-conversation-id="${escapeHtml(conversation.id)}">${isArchived ? "Desarxivar xat" : "Arxivar xat"}</button>
+      <button type="button" role="menuitem" data-conversation-action="mute" data-conversation-id="${escapeHtml(conversation.id)}">${isMuted ? "Activar notificacions" : "Silenciar xat"}</button>
+      <button type="button" role="menuitem" data-conversation-action="delete" data-conversation-id="${escapeHtml(conversation.id)}">Eliminar xat</button>
+    `;
+  }
+
+  function closeConversationMenu(mainPane) {
+    mainPane?.querySelectorAll(".chat-conversation-menu").forEach((menu) => menu.classList.add("hidden"));
+    mainPane?.querySelectorAll("[data-chat-menu-trigger]").forEach((trigger) => {
+      trigger.setAttribute("aria-expanded", "false");
+    });
+  }
+
+  async function applyConversationMenuAction(conversationId, action) {
+    const currentUser = getCurrentUser();
+    const conversation = state.conversations.find((item) => item.id === conversationId);
+    if (!conversation || !conversation.participantIds?.includes(currentUser.id)) {
+      showToast("No s'ha trobat aquesta conversa.");
+      return;
+    }
+
+    const actionSettings = {
+      archive: {
+        field: "archivedFor",
+        enabled: conversation.archivedFor?.includes(currentUser.id) !== true
+      },
+      mute: {
+        field: "mutedFor",
+        enabled: conversation.mutedFor?.includes(currentUser.id) !== true
+      },
+      delete: { field: "hiddenFor", enabled: true }
+    };
+    const setting = actionSettings[action];
+    if (!setting) return;
+
+    if (
+      action === "delete" &&
+      !window.confirm("Vols eliminar aquest xat de la teva llista? L'altra persona continuarà veient la conversa.")
+    ) {
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, "conversations", conversationId), {
+        [setting.field]: setting.enabled
+          ? arrayUnion(currentUser.id)
+          : arrayRemove(currentUser.id)
+      });
+      const currentUsers = Array.isArray(conversation[setting.field])
+        ? conversation[setting.field]
+        : [];
+      conversation[setting.field] = setting.enabled
+        ? [...new Set([...currentUsers, currentUser.id])]
+        : currentUsers.filter((userId) => userId !== currentUser.id);
+
+      if (["archive", "delete"].includes(action) && ui.activeConversationId === conversationId) {
+        ui.activeConversationId = null;
+        document.getElementById("chat-shell").classList.remove("mobile-thread-open");
+      }
+
+      renderMessagesView();
+      updateHeaderChrome();
+      const confirmation = {
+        archive: setting.enabled ? "Xat arxivat." : "Xat desarxivat.",
+        mute: setting.enabled ? "Xat silenciat." : "Notificacions del xat activades.",
+        delete: "Xat eliminat de la teva llista."
+      };
+      showToast(confirmation[action]);
+    } catch (error) {
+      console.error("No s'ha pogut actualitzar el xat:", error);
+      showToast("No s'ha pogut actualitzar el xat. Torna-ho a provar.");
+    }
+  }
+
+  function getVisibleConversations(currentUser) {
+    return state.conversations.filter((conversation) =>
+      Array.isArray(conversation.participantIds) &&
+      conversation.participantIds.includes(currentUser.id) &&
+      !conversation.hiddenFor?.includes(currentUser.id) &&
+      (Boolean(conversation.archivedFor?.includes(currentUser.id)) === showArchivedConversations)
+    );
   }
 
   function getConversationListMarkup(conversations, currentUser, filterQ) {
@@ -3031,7 +3154,21 @@ import {
           <div class="conv-item ${conv.id === ui.activeConversationId ? "active" : ""}${hasUnreadMessages ? " unread" : ""}" data-select-conv="${conv.id}">
             <img src="${escapeHtml(other.avatar)}" alt="${escapeHtml(other.name)}" />
             <div class="conv-info">
-              <strong>${escapeHtml(other.name)}</strong>
+              <div class="conv-title-row">
+                <strong title="${escapeHtml(other.name)}">${escapeHtml(other.name)}</strong>
+                <div class="chat-conversation-menu-wrap">
+                  <button type="button" class="chat-conversation-menu-trigger" data-chat-menu-trigger aria-label="Opcions del xat amb ${escapeHtml(other.name)}" aria-haspopup="menu" aria-expanded="false" aria-controls="chat-conversation-menu-${escapeHtml(conv.id)}">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <circle cx="5" cy="12" r="1.7" />
+                      <circle cx="12" cy="12" r="1.7" />
+                      <circle cx="19" cy="12" r="1.7" />
+                    </svg>
+                  </button>
+                  <div class="chat-conversation-menu hidden" id="chat-conversation-menu-${escapeHtml(conv.id)}" role="menu" aria-label="Opcions del xat amb ${escapeHtml(other.name)}">
+                    ${getConversationSettingsMarkup(conv, currentUser.id)}
+                  </div>
+                </div>
+              </div>
               <p>${lastMessage ? userContentMarkup(lastMessage.text) : "Inicia la conversa..."}</p>
             </div>
           </div>
@@ -3088,7 +3225,8 @@ import {
 
   function bindConversationList(listContainer) {
     listContainer.querySelectorAll("[data-select-conv]").forEach((item) => {
-      item.addEventListener("click", () => {
+      item.addEventListener("click", (event) => {
+        if (event.target.closest(".chat-conversation-menu-wrap")) return;
         ui.activeConversationId = item.dataset.selectConv;
         document.getElementById("chat-shell").classList.add("mobile-thread-open");
         renderMessagesView();
@@ -3159,11 +3297,7 @@ import {
       return;
     }
 
-    const myConvs = state.conversations.filter(
-      (conversation) =>
-        Array.isArray(conversation.participantIds) &&
-        conversation.participantIds.includes(currentUser.id)
-    );
+    const myConvs = getVisibleConversations(currentUser);
     if (!myConvs.some((conversation) => conversation.id === activeConv.id)) {
       renderMessagesView();
       return;
@@ -3205,9 +3339,8 @@ import {
       conversationDrafts.set(previousConversationId, previousMessageInput.value);
     }
 
-    const myConvs = state.conversations.filter(
-      (c) => Array.isArray(c.participantIds) && c.participantIds.includes(currentUser.id)
-    );
+    updateConversationArchiveToggle();
+    const myConvs = getVisibleConversations(currentUser);
 
     listContainer.innerHTML = getConversationListMarkup(myConvs, currentUser, filterQ);
     bindConversationList(listContainer);
@@ -3215,7 +3348,9 @@ import {
     const selectedConversationId = ui.activeConversationId;
     const activeConv = myConvs.find((c) => c.id === selectedConversationId) || myConvs[0];
     if (!activeConv) {
-      mainPane.innerHTML = `<div class="chat-empty-placeholder"><p>Cerca un usuari per iniciar un xat.</p></div>`;
+      ui.activeConversationId = null;
+      document.getElementById("chat-shell").classList.remove("mobile-thread-open");
+      mainPane.innerHTML = `<div class="chat-empty-placeholder"><p>${showArchivedConversations ? "No hi ha xats arxivats." : "Cerca un usuari per iniciar un xat."}</p></div>`;
       return;
     }
 
@@ -3232,10 +3367,10 @@ import {
 
     mainPane.innerHTML = `
       <div class="chat-header">
-        <div style="display: flex; align-items:center; gap:10px;">
+        <div class="chat-user-header">
           <button type="button" class="chip-action-btn mobile-chat-back" id="mobile-chat-back-btn">&larr;</button>
           <img src="${escapeHtml(other.avatar)}" alt="${escapeHtml(other.name)}" class="nav-avatar" />
-          <div>
+          <div class="chat-user-heading">
             <strong style="display:block;font-size:14px;">${escapeHtml(other.name)}</strong>
             <span style="font-size: 11.5px;color:var(--text-secondary);">${escapeHtml(other.year)} · ${escapeHtml(other.email)}</span>
           </div>
@@ -3323,17 +3458,22 @@ import {
         timestamp: timeStr
       };
       const conversationRef = doc(db, "conversations", activeConv.id);
+      let shouldNotifyOtherUser = true;
       try {
-        await runTransaction(db, async (transaction) => {
+        shouldNotifyOtherUser = await runTransaction(db, async (transaction) => {
           const snapshot = await transaction.get(conversationRef);
           if (!snapshot.exists()) {
             throw new Error(`No s'ha trobat la conversa ${activeConv.id}.`);
           }
-          const currentMessages = Array.isArray(snapshot.data().messages) ? snapshot.data().messages : [];
+          const currentConversation = snapshot.data();
+          const currentMessages = Array.isArray(currentConversation.messages) ? currentConversation.messages : [];
           transaction.update(conversationRef, {
             messages: [...currentMessages, newMessage],
-            [`typingUsers.${currentUser.id}`]: deleteField()
+            [`typingUsers.${currentUser.id}`]: deleteField(),
+            hiddenFor: arrayRemove(other.id),
+            archivedFor: arrayRemove(other.id)
           });
+          return !currentConversation.mutedFor?.includes(other.id);
         });
       } catch (error) {
         console.warn("Error enviant el missatge privat:", error);
@@ -3346,11 +3486,13 @@ import {
       clearLocalTypingState(activeConv.id);
       input.value = "";
       document.getElementById("pending-message-reference")?.remove();
-      try {
-        await pushNotification(other.id, `Nou missatge privat de ${currentUser.name}`, "messages", activeConv.id);
-      } catch (error) {
-        console.warn("Error creant la notificació del missatge privat:", error);
-        showToast("El missatge s'ha enviat, però no s'ha pogut crear la notificació.");
+      if (shouldNotifyOtherUser) {
+        try {
+          await pushNotification(other.id, `Nou missatge privat de ${currentUser.name}`, "messages", activeConv.id);
+        } catch (error) {
+          console.warn("Error creant la notificació del missatge privat:", error);
+          showToast("El missatge s'ha enviat, però no s'ha pogut crear la notificació.");
+        }
       }
     });
   }
@@ -3801,6 +3943,8 @@ import {
     if (avatarEl) avatarEl.src = currentUser.avatar;
 
     const hasUnreadMessages = state.conversations.some((conversation) =>
+      !conversation.hiddenFor?.includes(currentUser.id) &&
+      !conversation.mutedFor?.includes(currentUser.id) &&
       hasUnreadMessagesForUser(conversation, currentUser.id)
     );
     document.getElementById("nav-msg-badge")?.classList.toggle("hidden", !hasUnreadMessages);
@@ -3814,7 +3958,17 @@ import {
       `;
     }
 
-    const myNotifs = state.notifications.filter((n) => n.userId === currentUser.id && !n.read);
+    const mutedConversations = new Set(
+      state.conversations
+        .filter((conversation) => conversation.mutedFor?.includes(currentUser.id))
+        .map((conversation) => conversation.id)
+    );
+    const myNotifs = state.notifications.filter(
+      (notification) =>
+        notification.userId === currentUser.id &&
+        !notification.read &&
+        !(notification.linkType === "messages" && mutedConversations.has(notification.linkId))
+    );
     const unreadCount = myNotifs.length;
     const badgeEl = document.getElementById("notif-unread-count");
     if (badgeEl) {
@@ -3953,6 +4107,7 @@ import {
     if (activeModal && activeModal.id !== modalId) modalBackHistory.push(activeModal.id);
     ensureModalBackButton(modal);
     ensureModalSuggestionButton(modal);
+    ensureModalSuggestionOwl(modal);
     modal.classList.remove("hidden");
     updateBackButton();
     notifySuggestionPreviewRoute();
@@ -3979,7 +4134,7 @@ import {
 
   function ensureModalSuggestionButton(modal) {
     if (
-      ["modal-suggestions", "modal-suggestion-detail"].includes(modal.id)
+      ["modal-publish-project", "modal-suggestions", "modal-suggestion-detail"].includes(modal.id)
     ) {
       return;
     }
@@ -3998,6 +4153,30 @@ import {
     `;
     button.addEventListener("click", () => openSuggestionsModal(getSuggestionPreviewOverlay()));
     header.insertBefore(button, header.querySelector(".modal-close-btn") || null);
+  }
+
+  function ensureModalSuggestionOwl(modal) {
+    if (modal.id !== "modal-publish-project" || modal.querySelector(".modal-suggestion-owl")) return;
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "modal-suggestion-owl";
+    button.setAttribute("aria-label", "Fer un suggeriment sobre aquesta finestra");
+    button.title = "Fer un suggeriment sobre aquesta finestra";
+    button.innerHTML = '<img src="Mussol eram.png" alt="" aria-hidden="true" />';
+    button.addEventListener("click", () => openSuggestionsModal(getSuggestionPreviewOverlay()));
+    modal.append(button);
+
+    modal.addEventListener("pointermove", (event) => {
+      if (event.target === modal) {
+        button.style.left = `${event.clientX}px`;
+        button.style.top = `${event.clientY}px`;
+        button.classList.add("is-visible");
+      } else if (!button.contains(event.target)) {
+        button.classList.remove("is-visible");
+      }
+    });
+    modal.addEventListener("pointerleave", () => button.classList.remove("is-visible"));
   }
 
   function openLevelsModal(student) {
@@ -6123,6 +6302,43 @@ import {
       renderMessagesView();
       renderChatUserSearchResults();
     });
+    document.getElementById("chat-archive-toggle").addEventListener("click", () => {
+      showArchivedConversations = !showArchivedConversations;
+      ui.activeConversationId = null;
+      document.getElementById("chat-shell").classList.remove("mobile-thread-open");
+      renderMessagesView();
+    });
+    const chatShell = document.getElementById("chat-shell");
+    const conversationList = document.getElementById("conversation-list");
+    chatShell.addEventListener("click", (event) => {
+      const target = event.target;
+      const menuTrigger = target.closest("[data-chat-menu-trigger]");
+      if (menuTrigger) {
+        event.stopPropagation();
+        const menu = menuTrigger.parentElement.querySelector(".chat-conversation-menu");
+        const shouldOpen = menu.classList.contains("hidden");
+        closeConversationMenu(conversationList);
+        if (shouldOpen) {
+          menu.classList.remove("hidden");
+          menuTrigger.setAttribute("aria-expanded", "true");
+        }
+        return;
+      }
+
+      const actionButton = target.closest("[data-conversation-action]");
+      if (actionButton) {
+        closeConversationMenu(conversationList);
+        void applyConversationMenuAction(
+          actionButton.dataset.conversationId,
+          actionButton.dataset.conversationAction
+        );
+        return;
+      }
+
+      if (!target.closest(".chat-conversation-menu-wrap")) {
+        closeConversationMenu(conversationList);
+      }
+    });
     document.getElementById("chat-user-search-results").addEventListener("click", (e) => {
       const userButton = e.target.closest("[data-start-chat-user]");
       if (!userButton) return;
@@ -6132,6 +6348,9 @@ import {
       void startOrOpenConversation(userId);
     });
     document.addEventListener("click", (e) => {
+      if (!e.target.closest("#chat-shell")) {
+        closeConversationMenu(conversationList);
+      }
       if (e.target.closest(".chat-sidebar-header")) return;
       document.getElementById("chat-user-search-results").classList.add("hidden");
       chatSearchInput.setAttribute("aria-expanded", "false");
@@ -6218,6 +6437,12 @@ import {
         navigateTo("project", e.target.dataset.openProject);
       }
       if (e.key === "Escape") {
+        const chatMenu = document.querySelector("#conversation-list .chat-conversation-menu:not(.hidden)");
+        const menuTrigger = chatMenu?.parentElement.querySelector("[data-chat-menu-trigger]");
+        closeConversationMenu(document.getElementById("conversation-list"));
+        if (menuTrigger) {
+          menuTrigger.focus();
+        }
         closeAllPopovers();
         const activeModals = [...document.querySelectorAll(".modal-backdrop:not(.hidden)")];
         if (activeModals.at(-1)?.id !== "modal-suggestions") {
