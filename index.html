@@ -237,15 +237,15 @@
     <div class="nav-inner">
       <div class="nav-left-cluster">
         <div class="nav-brand-anchor dropdown-anchor">
-          <button type="button" class="nav-brand-trigger" id="platform-menu-trigger" aria-label="Configuració i informació de la plataforma" aria-expanded="false">
+          <button type="button" class="nav-brand-trigger" id="platform-menu-trigger" aria-label="Informació de la plataforma" aria-expanded="false">
             <img src="Logotip ERAM.png" alt="ERAM" />
           </button>
           <div class="popover-menu nav-brand-menu hidden" id="platform-dropdown" role="menu">
-            <button type="button" class="popover-item" data-action="open-settings" role="menuitem">
-              <strong>Configuració</strong>
-            </button>
             <button type="button" class="popover-item" data-action="open-about" role="menuitem">
               <strong>About Us</strong>
+            </button>
+            <button type="button" class="popover-item" data-action="open-suggestions" role="menuitem">
+              <strong>Bústia de suggeriments</strong>
             </button>
           </div>
         </div>
@@ -289,6 +289,15 @@
             </svg>
             <span class="unread-dot hidden" id="nav-msg-badge"></span>
             <span class="nav-label-mobile">Xat</span>
+          </button>
+
+          <button type="button" class="nav-icon-btn hidden" id="nav-suggestions" data-route="suggestions" title="Bústia de suggeriments" aria-label="Bústia de suggeriments">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 8h16v12H4z" />
+              <path d="M7 8V5h10v3" />
+              <path d="M8 12h8" />
+            </svg>
+            <span class="nav-label-mobile">Suggeriments</span>
           </button>
         </nav>
       </div>
@@ -559,6 +568,30 @@
             <p>Selecciona una conversa o cerca un usuari per iniciar un xat.</p>
           </div>
         </div>
+      </div>
+    </section>
+
+    <section id="view-suggestions" class="view-section hidden" aria-label="Recull de suggeriments">
+      <div class="page-container">
+        <div class="page-header-row">
+          <div>
+            <h1 class="page-title">Bústia de suggeriments</h1>
+            <p class="page-subtitle">Consulta i filtra les propostes de millora de la comunitat.</p>
+          </div>
+        </div>
+        <div class="suggestions-filter-bar" aria-label="Filtres de suggeriments">
+          <select id="suggestions-filter-page" class="pill-select" aria-label="Filtrar per pàgina">
+            <option value="">Totes les pàgines</option>
+          </select>
+          <select id="suggestions-filter-author" class="pill-select" aria-label="Filtrar per usuari">
+            <option value="">Tots els usuaris</option>
+          </select>
+          <select id="suggestions-filter-order" class="pill-select" aria-label="Ordenar suggeriments">
+            <option value="newest">Més recents</option>
+            <option value="oldest">Més antics</option>
+          </select>
+        </div>
+        <div id="suggestions-list" class="suggestions-list" aria-live="polite"></div>
       </div>
     </section>
 
@@ -1095,29 +1128,6 @@
     </div>
   </div>
 
-  <!-- MODAL: LANGUAGE SETTINGS -->
-  <div class="modal-backdrop hidden" id="modal-settings" role="dialog" aria-modal="true" aria-labelledby="modal-settings-title">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h2 id="modal-settings-title">Configuració</h2>
-        <button type="button" class="modal-close-btn" data-close-modal="modal-settings" aria-label="Tancar">&times;</button>
-      </div>
-      <div class="modal-form">
-        <div class="form-group">
-          <label for="language-select">Idioma de la web</label>
-          <select id="language-select">
-            <option value="ca">Català</option>
-            <option value="en">English</option>
-          </select>
-          <small class="form-hint">El contingut escrit pels usuaris es mostrarà traduït quan sigui possible. Sempre podràs veure'n l'original. Els textos que es tradueixen s'envien a Google Cloud Translation.</small>
-        </div>
-        <div class="modal-actions">
-          <button type="button" class="btn-primary" data-close-modal="modal-settings">Fet</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- MODAL: LEVELS & SUBJECT DETAILS -->
   <div class="modal-backdrop hidden" id="modal-levels" role="dialog" aria-modal="true" aria-labelledby="modal-levels-title">
     <div class="modal-card">
@@ -1139,13 +1149,71 @@
     </div>
   </div>
 
+  <div class="modal-backdrop hidden" id="modal-suggestions" role="dialog" aria-modal="true" aria-labelledby="modal-suggestions-title">
+    <div class="modal-card modal-suggestions-card">
+      <div class="modal-header">
+        <h2 id="modal-suggestions-title">Bústia de suggeriments</h2>
+        <button type="button" class="modal-close-btn" data-close-modal="modal-suggestions" aria-label="Tancar">&times;</button>
+      </div>
+      <form id="suggestion-form" class="modal-form">
+        <label class="checkbox-inline suggestion-text-only">
+          <input type="checkbox" id="suggestion-text-only" />
+          <span>Enviar només el text, sense referenciar cap pantalla</span>
+        </label>
+        <section id="suggestion-reference" class="suggestion-reference" aria-label="Pàgina de referència">
+          <div class="suggestion-replica">
+            <iframe id="suggestion-preview-frame" title="Rèplica navegable d'Intreramers"></iframe>
+          </div>
+          <div class="suggestion-preview-controls">
+            <label id="suggestion-original-ratio-option" class="checkbox-inline suggestion-original-ratio" hidden>
+              <input type="checkbox" id="suggestion-original-ratio" />
+              <span>Veure amb la proporció original de la web</span>
+            </label>
+            <label id="suggestion-full-page-option" class="checkbox-inline suggestion-full-page" hidden>
+              <input type="checkbox" id="suggestion-full-page" />
+              <span>Veure tota la pàgina</span>
+            </label>
+            <div class="suggestion-preview-info">
+              <button type="button" class="suggestion-info-button" aria-label="Informació sobre la pàgina de referència" aria-describedby="suggestion-preview-info-tooltip">i</button>
+              <span class="suggestion-info-tooltip" id="suggestion-preview-info-tooltip" role="tooltip">Desplaça amb dos dits o arrossega per navegar; fes pinça per ampliar o reduir. En enviar el suggeriment, s'hi adjuntarà una captura de la pàgina seleccionada.</span>
+            </div>
+          </div>
+        </section>
+        <div class="form-group">
+          <label for="suggestion-message">Què t'agradaria millorar? *</label>
+          <textarea id="suggestion-message" rows="4" maxlength="3000" required placeholder="Descriu el problema o la teva idea..."></textarea>
+        </div>
+        <div id="suggestion-error" class="form-error hidden" role="alert"></div>
+        <div class="modal-actions">
+          <button type="submit" class="btn-primary" id="suggestion-submit">Enviar suggeriment</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="modal-suggestion-detail" role="dialog" aria-modal="true" aria-labelledby="suggestion-detail-title">
+    <div class="modal-card modal-suggestion-detail-card">
+      <div class="modal-header">
+        <h2 id="suggestion-detail-title">Detall del suggeriment</h2>
+        <button type="button" class="modal-close-btn" data-close-modal="modal-suggestion-detail" aria-label="Tancar">&times;</button>
+      </div>
+      <div id="suggestion-detail-content" class="suggestion-detail-content"></div>
+    </div>
+  </div>
+
   <!-- TOAST NOTIFICATION CONTAINER -->
   <div id="toast-container" class="toast-container" aria-live="polite"></div>
 
   <script>
     history.scrollRestoration = "manual";
-    const savedRoute = sessionStorage.getItem("eram-active-route");
-    const savedRouteId = sessionStorage.getItem("eram-active-route-id");
+    const previewParams = new URLSearchParams(window.location.search);
+    const isFeedbackPreview = previewParams.get("feedback-preview") === "1";
+    const savedRoute = isFeedbackPreview
+      ? previewParams.get("feedback-route")
+      : sessionStorage.getItem("eram-active-route");
+    const savedRouteId = isFeedbackPreview
+      ? previewParams.get("feedback-route-id")
+      : sessionStorage.getItem("eram-active-route-id");
     const routeViews = {
       discover: "view-discover",
       project: "view-project-detail",

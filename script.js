@@ -1,5 +1,4 @@
-import { auth, db, functions, storage } from "./firebase.js";
-import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
+import { auth, db, storage } from "./firebase.js";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -20,7 +19,8 @@ import {
   writeBatch,
   arrayUnion,
   arrayRemove,
-  increment
+  increment,
+  serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {
   ref,
@@ -29,6 +29,9 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 
 (() => {
+  const previewParams = new URLSearchParams(window.location.search);
+  const isFeedbackPreview = previewParams.get("feedback-preview") === "1";
+
   const STUDY_SUBJECTS = {
     "1r Curs": [
       "Fonaments del disseny gràfic",
@@ -570,393 +573,15 @@ import {
     pointsLedger: []
   };
 
-  const translateText = httpsCallable(functions, "translateUserContent");
-  const userContentState = new WeakMap();
-  const textNodeState = new WeakMap();
-  const attributeState = new WeakMap();
-  const memoryTranslationCache = new Map();
-  const failedTranslationKeys = new Set();
-  const staticTranslationCache = new Map();
-  const STATIC_TRANSLATION_CACHE_KEY = "eram-static-translations-v1";
-  const MAX_TRANSLATION_BATCH_CODEPOINTS = 23000;
-  const MAX_TRANSLATION_BATCH_ITEMS = 50;
-  let translationObserver;
-  let translationTimer;
-  let translationInProgress = false;
-  let translationRequested = false;
-  let translationErrorNotified = false;
-
-  try {
-    const savedTranslations = JSON.parse(localStorage.getItem(STATIC_TRANSLATION_CACHE_KEY) || "[]");
-    if (Array.isArray(savedTranslations)) {
-      savedTranslations.slice(-1500).forEach(([key, value]) => {
-        if (typeof key === "string" && value && typeof value.text === "string") {
-          staticTranslationCache.set(key, value);
-        }
-      });
-    }
-  } catch (error) {
-    console.warn("No s'ha pogut recuperar la memòria cau de traduccions:", error);
-  }
-
-  function translationKey(language, text) {
-    return `${language}\u0000${text}`;
-  }
-
-  function persistStaticTranslationCache() {
-    try {
-      const entries = [...staticTranslationCache.entries()].slice(-1500);
-      localStorage.setItem(STATIC_TRANSLATION_CACHE_KEY, JSON.stringify(entries));
-    } catch (error) {
-      console.warn("No s'ha pogut desar la memòria cau de traduccions:", error);
-    }
-  }
-
-  function userContentMarkup(value, extraClass = "") {
+  function userContentMarkup(value) {
     const text = value == null ? "" : String(value);
-    return `<span class="user-content-translation-wrap ${extraClass}">
-      <span class="user-generated-content" data-user-content>${escapeHtml(text)}</span>
-      <button type="button" class="user-content-translation-toggle" data-user-content-toggle data-i18n-ignore hidden></button>
-    </span>`;
-  }
-
-  function getUserContentToggle(element) {
-    return element.closest(".user-content-translation-wrap")?.querySelector("[data-user-content-toggle]");
-  }
-
-  function isTranslatableTextNode(node) {
-    const parent = node.parentElement;
-    if (!parent || !node.nodeValue?.trim() || !/\p{L}/u.test(node.nodeValue)) return false;
-    if (parent.closest("[data-user-content], [data-i18n-ignore], script, style, noscript, textarea, option")) {
-      return false;
-    }
-    return true;
-  }
-
-  function getNodeTranslationRecord(node) {
-    const currentText = node.nodeValue || "";
-    let record = textNodeState.get(node);
-    if (!record) {
-      record = { original: currentText, rendered: currentText };
-      textNodeState.set(node, record);
-    } else if (currentText !== record.rendered && currentText !== record.original) {
-      record.original = currentText;
-      record.rendered = currentText;
-    }
-    return record;
-  }
-
-  function getAttributeTranslationRecord(element, attribute) {
-    let records = attributeState.get(element);
-    if (!records) {
-      records = new Map();
-      attributeState.set(element, records);
-    }
-
-    const currentValue = element.getAttribute(attribute) || "";
-    let record = records.get(attribute);
-    if (!record) {
-      record = { original: currentValue, rendered: currentValue };
-      records.set(attribute, record);
-    } else if (currentValue !== record.rendered && currentValue !== record.original) {
-      record.original = currentValue;
-      record.rendered = currentValue;
-    }
-    return record;
-  }
-
-  function updateUserContentDisplay(element, record, targetLanguage, result) {
-    const toggle = getUserContentToggle(element);
-    const isTranslated = result.detectedLanguage !== targetLanguage && result.text !== record.original;
-    const showOriginal = record.showingOriginal && isTranslated;
-    const visibleText = showOriginal ? record.original : result.text;
-
-    if (element.textContent !== visibleText) {
-      record.rendered = visibleText;
-      element.textContent = visibleText;
-    } else {
-      record.rendered = visibleText;
-    }
-    record.showingOriginal = showOriginal;
-    record.displayLanguage = targetLanguage;
-    record.result = result;
-    if (toggle) {
-      toggle.removeAttribute("data-translation-retry");
-      toggle.disabled = false;
-      toggle.hidden = !isTranslated;
-      toggle.textContent = showOriginal
-        ? targetLanguage === "en" ? "See translation" : "Veure la traducció"
-        : targetLanguage === "en" ? "See original" : "Veure l'original";
-      toggle.setAttribute("aria-label", toggle.textContent);
-    }
-  }
-
-  function getTranslationFailureText() {
-    return ui.language === "en"
-      ? "Translation is unavailable. Please try again."
-      : "La traducció no està disponible. Torna-ho a provar.";
-  }
-
-  function applyTranslationFailure(job, tooLarge = false) {
-    if (job.kind !== "user") return;
-    const toggle = getUserContentToggle(job.element);
-    if (toggle) {
-      toggle.hidden = false;
-      toggle.disabled = tooLarge;
-      toggle.textContent = tooLarge
-        ? ui.language === "en" ? "Text too long to translate" : "Text massa llarg per traduir"
-        : ui.language === "en" ? "Retry translation" : "Reintentar traducció";
-      if (tooLarge) toggle.removeAttribute("data-translation-retry");
-      else toggle.dataset.translationRetry = "";
-      toggle.setAttribute("aria-label", toggle.textContent);
-    }
-  }
-
-  function applyTranslationResult(job, result, targetLanguage) {
-    if (job.kind === "user") {
-      const record = userContentState.get(job.element);
-      if (!record) return;
-      record.translations.set(targetLanguage, result);
-      updateUserContentDisplay(job.element, record, targetLanguage, result);
-      return;
-    }
-
-    const record = job.record;
-    if (job.kind === "text") {
-      record.rendered = result.text;
-      if (job.node.nodeValue !== result.text) job.node.nodeValue = result.text;
-    } else {
-      record.rendered = result.text;
-      if (job.element.getAttribute(job.attribute) !== result.text) {
-        job.element.setAttribute(job.attribute, result.text);
-      }
-    }
-    memoryTranslationCache.set(job.key, result);
-    staticTranslationCache.set(job.key, result);
-  }
-
-  async function processPageTranslations() {
-    const targetLanguage = ui.language;
-    document.documentElement.lang = targetLanguage;
-
-    const jobs = [];
-    const walker = document.createTreeWalker(document.documentElement, NodeFilter.SHOW_TEXT);
-    let textNode;
-    while ((textNode = walker.nextNode())) {
-      if (!isTranslatableTextNode(textNode)) continue;
-      const record = getNodeTranslationRecord(textNode);
-      if (!record.original.trim()) continue;
-      const key = translationKey(targetLanguage, record.original);
-      const cached = memoryTranslationCache.get(key) || staticTranslationCache.get(key);
-      if (cached) {
-        applyTranslationResult({ kind: "text", node: textNode, record, key }, cached, targetLanguage);
-      } else {
-        jobs.push({ kind: "text", node: textNode, record, key, text: record.original });
-      }
-    }
-
-    document.querySelectorAll("[placeholder], [aria-label], [title]").forEach((element) => {
-      if (element.closest("[data-user-content], [data-i18n-ignore]")) return;
-      ["placeholder", "aria-label", "title"].forEach((attribute) => {
-        if (!element.hasAttribute(attribute)) return;
-        const record = getAttributeTranslationRecord(element, attribute);
-        if (!record.original.trim() || !/\p{L}/u.test(record.original)) return;
-        const key = translationKey(targetLanguage, record.original);
-        const cached = memoryTranslationCache.get(key) || staticTranslationCache.get(key);
-        if (cached) {
-          applyTranslationResult({ kind: "attribute", element, attribute, record, key }, cached, targetLanguage);
-        } else {
-          jobs.push({ kind: "attribute", element, attribute, record, key, text: record.original });
-        }
-      });
-    });
-
-    document.querySelectorAll("[data-user-content]").forEach((element) => {
-      const currentText = element.textContent || "";
-      let record = userContentState.get(element);
-      if (!record) {
-        record = { original: currentText, rendered: currentText, translations: new Map(), showingOriginal: false };
-        userContentState.set(element, record);
-      } else if (currentText !== record.rendered && currentText !== record.original) {
-        record.original = currentText;
-        record.rendered = currentText;
-        record.translations.clear();
-        record.showingOriginal = false;
-      }
-      if (record.displayLanguage && record.displayLanguage !== targetLanguage) {
-        record.showingOriginal = false;
-      }
-      if (!record.original.trim()) return;
-
-      const key = translationKey(targetLanguage, record.original);
-      const cached = record.translations.get(targetLanguage) || memoryTranslationCache.get(key);
-      if (cached) {
-        applyTranslationResult({ kind: "user", element, key }, cached, targetLanguage);
-      } else {
-        jobs.push({ kind: "user", element, key, text: record.original });
-      }
-    });
-
-    if (!jobs.length || !state.currentUserId || !auth.currentUser) return;
-
-    const uniqueJobs = new Map();
-    jobs.forEach((job) => {
-      if (!failedTranslationKeys.has(job.key)) {
-        if (!uniqueJobs.has(job.key)) uniqueJobs.set(job.key, []);
-        uniqueJobs.get(job.key).push(job);
-      } else {
-        applyTranslationFailure(job);
-      }
-    });
-    const pending = [...uniqueJobs.entries()];
-    const batches = [];
-    let batch = [];
-    let batchCodepoints = 0;
-    for (const [key, relatedJobs] of pending) {
-      const text = relatedJobs[0].text;
-      const codepoints = Array.from(text).length;
-      if (codepoints > MAX_TRANSLATION_BATCH_CODEPOINTS) {
-        failedTranslationKeys.add(key);
-        relatedJobs.forEach((job) => applyTranslationFailure(job, true));
-        console.error("S'ha omès una traducció perquè el text supera el límit permès.");
-        continue;
-      }
-      if (
-        batch.length >= MAX_TRANSLATION_BATCH_ITEMS ||
-        batchCodepoints + codepoints > MAX_TRANSLATION_BATCH_CODEPOINTS
-      ) {
-        batches.push(batch);
-        batch = [];
-        batchCodepoints = 0;
-      }
-      batch.push([key, relatedJobs]);
-      batchCodepoints += codepoints;
-    }
-    if (batch.length) batches.push(batch);
-
-    let hadError = false;
-    for (const requestBatch of batches) {
-      const requestItems = requestBatch.map(([, relatedJobs]) => relatedJobs[0].text);
-      try {
-        const response = await translateText({
-          contents: requestItems,
-          targetLanguage
-        });
-        const translations = response.data?.translations;
-        if (!Array.isArray(translations) || translations.length !== requestBatch.length) {
-          throw new Error("La funció de traducció ha retornat una resposta invàlida.");
-        }
-        if (targetLanguage !== ui.language) {
-          translationRequested = true;
-          continue;
-        }
-        translations.forEach((translation, index) => {
-          const [key, relatedJobs] = requestBatch[index];
-          const result = {
-            text: typeof translation.text === "string" ? translation.text : "",
-            detectedLanguage: typeof translation.detectedLanguage === "string"
-              ? translation.detectedLanguage.split("-")[0].toLowerCase()
-              : ""
-          };
-          if (!result.text) throw new Error("La funció de traducció ha retornat un text buit.");
-          memoryTranslationCache.set(key, result);
-          relatedJobs.forEach((job) => applyTranslationResult(job, result, targetLanguage));
-        });
-      } catch (error) {
-        hadError = true;
-        console.error("No s'ha pogut traduir el contingut:", error);
-        requestBatch.forEach(([key, relatedJobs]) => {
-          failedTranslationKeys.add(key);
-          relatedJobs.forEach(applyTranslationFailure);
-        });
-      }
-    }
-    if (staticTranslationCache.size) persistStaticTranslationCache();
-    if (hadError && !translationErrorNotified) {
-      translationErrorNotified = true;
-      showToast(getTranslationFailureText());
-    }
-  }
-
-  async function translatePageContent() {
-    translationRequested = true;
-    if (translationInProgress) return;
-    translationInProgress = true;
-    try {
-      while (translationRequested) {
-        translationRequested = false;
-        await processPageTranslations();
-      }
-    } finally {
-      translationInProgress = false;
-    }
-  }
-
-  function initializeTranslation() {
-    document.addEventListener("click", async (event) => {
-      const toggle = event.target.closest("[data-user-content-toggle]");
-      if (!toggle) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      const element = toggle.closest(".user-content-translation-wrap")?.querySelector("[data-user-content]");
-      if (!element) return;
-
-      if (toggle.hasAttribute("data-translation-retry")) {
-        const record = userContentState.get(element);
-        if (!record) return;
-        const key = translationKey(ui.language, record.original);
-        failedTranslationKeys.delete(key);
-        toggle.removeAttribute("data-translation-retry");
-        toggle.hidden = true;
-        await translatePageContent();
-        return;
-      }
-
-      const record = userContentState.get(element);
-      if (!record?.result) return;
-      record.showingOriginal = !record.showingOriginal;
-      updateUserContentDisplay(element, record, ui.language, record.result);
-    }, true);
-
-    document.getElementById("language-select")?.addEventListener("change", async (event) => {
-      const selectedLanguage = event.target.value === "en" ? "en" : "ca";
-      const previousLanguage = ui.language;
-      const currentUserId = state.currentUserId;
-      try {
-        if (currentUserId) {
-          await setDoc(doc(db, "students", currentUserId), { language: selectedLanguage }, { merge: true });
-        }
-        localStorage.setItem("eram-language", selectedLanguage);
-        ui.language = selectedLanguage;
-        failedTranslationKeys.clear();
-        translationErrorNotified = false;
-        await translatePageContent();
-      } catch (error) {
-        console.error("No s'ha pogut desar l'idioma seleccionat:", error);
-        event.target.value = previousLanguage;
-        showToast(selectedLanguage === "en"
-          ? "Could not save your language preference."
-          : "No s'ha pogut desar la preferència d'idioma.");
-      }
-    });
-
-    translationObserver = new MutationObserver(() => {
-      clearTimeout(translationTimer);
-      translationTimer = setTimeout(() => void translatePageContent(), 120);
-    });
-    translationObserver.observe(document.documentElement, {
-      subtree: true,
-      childList: true,
-      characterData: true,
-      attributes: true,
-      attributeFilter: ["placeholder", "aria-label", "title"]
-    });
-    void translatePageContent();
+    return `<span class="user-generated-content">${escapeHtml(text)}</span>`;
   }
 
   // Estat reactiu en memòria sincronitzat amb Firestore
   const state = {
     currentUserId: null,
+    currentUserProfile: null,
     students: [],
     projects: [],
     projectsLoaded: false,
@@ -964,8 +589,22 @@ import {
     positions: [],
     conversations: [],
     notifications: [],
-    pointsLedger: []
+    pointsLedger: [],
+    suggestions: [],
+    suggestionsLoaded: false,
+    suggestionsError: ""
   };
+
+  const SUGGESTION_MANAGER_IDS = new Set([
+    "hlluZulYb9floOaHfJnJwJtFRd73",
+    "wga43nUbJAaaaXTTFNnj2HxstZ42",
+    "IkHVuvsGIMbSBcQlOSa1ZOLFv1G3",
+    "6nneJjGahNTvjbNAPjSOIO6By7z1"
+  ]);
+
+  function isSuggestionManager() {
+    return SUGGESTION_MANAGER_IDS.has(state.currentUserId);
+  }
 
   // =========================================================================
   // 2. HELPERS DE SINCRONITZACIÓ AMB FIRESTORE I STORAGE
@@ -1057,6 +696,46 @@ import {
   }
 
   let listenersStarted = false;
+  let suggestionsUnsubscribe = null;
+
+  function syncSuggestionAccess() {
+    const navButton = document.getElementById("nav-suggestions");
+    const canManageSuggestions = isSuggestionManager();
+    navButton?.classList.toggle("hidden", !canManageSuggestions);
+
+    if (!canManageSuggestions) {
+      suggestionsUnsubscribe?.();
+      suggestionsUnsubscribe = null;
+      state.suggestions = [];
+      state.suggestionsLoaded = false;
+      state.suggestionsError = "";
+      if (ui.route === "suggestions") navigateTo("discover", null, { skipHistory: true });
+      return;
+    }
+
+    if (suggestionsUnsubscribe) return;
+    state.suggestionsLoaded = false;
+    state.suggestionsError = "";
+    suggestionsUnsubscribe = onSnapshot(
+      collection(db, "suggestions"),
+      (snapshot) => {
+        state.suggestions = snapshot.docs.map((suggestionDoc) => ({
+          id: suggestionDoc.id,
+          ...suggestionDoc.data()
+        }));
+        state.suggestionsLoaded = true;
+        state.suggestionsError = "";
+        if (ui.route === "suggestions") renderSuggestionsView();
+      },
+      (error) => {
+        console.error("No s'han pogut carregar els suggeriments:", error);
+        state.suggestionsLoaded = true;
+        state.suggestionsError = "No s'han pogut carregar els suggeriments. Torna-ho a provar més tard.";
+        if (ui.route === "suggestions") renderSuggestionsView();
+      }
+    );
+  }
+
   function startRealtimeSync() {
     if (listenersStarted) return;
     listenersStarted = true;
@@ -1108,6 +787,7 @@ import {
     if (ui.route === "project") renderProjectDetailView();
     if (ui.route === "positions") renderPositionsView();
     if (ui.route === "messages") renderMessagesView();
+    if (ui.route === "suggestions") renderSuggestionsView();
     if (ui.route === "profile") renderProfileView();
     if (ui.route === "leaderboard") renderLeaderboardView();
   }
@@ -1201,6 +881,7 @@ import {
 
     const modalCard = document.querySelector("#modal-publish-project .modal-card");
     if (modalCard) modalCard.scrollTop = 0;
+    notifySuggestionPreviewRoute();
   }
 
   function goBackProjectWizardStep() {
@@ -1464,8 +1145,12 @@ import {
     image.src = source;
   }
 
-  const savedRoute = sessionStorage.getItem("eram-active-route");
-  const savedRouteId = sessionStorage.getItem("eram-active-route-id");
+  const savedRoute = isFeedbackPreview
+    ? previewParams.get("feedback-route")
+    : sessionStorage.getItem("eram-active-route");
+  const savedRouteId = isFeedbackPreview
+    ? previewParams.get("feedback-route-id")
+    : sessionStorage.getItem("eram-active-route-id");
   const savedViewStateText = sessionStorage.getItem("eram-active-view-state");
   let savedViewState = {};
   if (savedViewStateText) {
@@ -1486,13 +1171,20 @@ import {
     savedViewState.posFilters && typeof savedViewState.posFilters === "object"
       ? savedViewState.posFilters
       : {};
-  const validRoutes = new Set(["discover", "project", "positions", "messages", "profile", "leaderboard"]);
+  const validRoutes = new Set([
+    "discover",
+    "project",
+    "positions",
+    "messages",
+    "suggestions",
+    "profile",
+    "leaderboard"
+  ]);
   const initialRoute =
     validRoutes.has(savedRoute) && (savedRoute !== "project" || savedRouteId) ? savedRoute : "discover";
 
   const ui = {
     route: initialRoute,
-    language: localStorage.getItem("eram-language") === "en" ? "en" : "ca",
     selectedCategory: typeof savedViewState.selectedCategory === "string" ? savedViewState.selectedCategory : "General",
     searchQuery: typeof savedViewState.searchQuery === "string" ? savedViewState.searchQuery : "",
     sortBy: typeof savedViewState.sortBy === "string" ? savedViewState.sortBy : "recent",
@@ -1520,6 +1212,10 @@ import {
       location: typeof savedPositionFilters.location === "string" ? savedPositionFilters.location : ""
     }
   };
+  let activeSuggestionReference = null;
+  let suggestionPreviewZoom = 1;
+  let suggestionPreviewScale = 1;
+  const suggestionPreviewOriginalSize = { width: 1280, height: 720 };
   const savedScrollX = Number.isFinite(savedViewState.scrollX) ? savedViewState.scrollX : 0;
   const savedScrollY = Number.isFinite(savedViewState.scrollY) ? savedViewState.scrollY : 0;
   const savedMessageScrollTop = Number.isFinite(savedViewState.messageScrollTop)
@@ -1552,6 +1248,83 @@ import {
     return "";
   }
 
+  function getSuggestionPreviewOverlay() {
+    const activeModal = [...document.querySelectorAll(".modal-backdrop:not(.hidden)")].reverse()[0];
+    if (activeModal && !["modal-suggestions", "modal-suggestion-detail"].includes(activeModal.id)) {
+      if (
+        activeModal.id === "modal-subject" &&
+        document.getElementById("modal-subject-title")?.textContent.trim() === "About Us"
+      ) {
+        return { type: "about" };
+      }
+      if (activeModal.id === "modal-subject") {
+        return {
+          type: "subject",
+          subject: document.getElementById("modal-subject-title")?.textContent.trim() || ""
+        };
+      }
+      if (activeModal.id === "modal-publish-project") {
+        return {
+          type: "project-wizard",
+          stepId: Number(activeModal.querySelector("[data-project-step]:not([hidden])")?.dataset.projectStep) || 1,
+          seekingCollaborator: document.getElementById("proj-seeking-collaborator")?.checked === true
+        };
+      }
+      if (activeModal.id === "modal-edit-profile") return { type: "profile-edit" };
+      if (activeModal.id === "modal-create") return { type: "create-menu" };
+      return { type: "modal", id: activeModal.id };
+    }
+
+    const activePopover = document.querySelector(".popover-menu:not(.hidden)");
+    return activePopover ? { type: "popover", id: activePopover.id } : null;
+  }
+
+  function normalizeSuggestionOverlay(overlay) {
+    if (!overlay || typeof overlay !== "object") return null;
+    if (overlay.type === "about") return { type: "about" };
+    if (overlay.type === "subject" && typeof overlay.subject === "string") {
+      const subject = overlay.subject.trim();
+      if (subject && subject.length <= 120) return { type: "subject", subject };
+    }
+    if (overlay.type === "project-wizard") {
+      const stepId = Number(overlay.stepId);
+      if (![1, 2, 3, 4, 5].includes(stepId)) return null;
+      return {
+        type: "project-wizard",
+        stepId,
+        seekingCollaborator: overlay.seekingCollaborator === true
+      };
+    }
+    if (overlay.type === "profile-edit") return { type: "profile-edit" };
+    if (overlay.type === "create-menu") return { type: "create-menu" };
+    if (overlay.type === "popover" && ["platform-dropdown", "notif-dropdown", "profile-dropdown"].includes(overlay.id)) {
+      return { type: "popover", id: overlay.id };
+    }
+    if (
+      overlay.type === "modal" &&
+      typeof overlay.id === "string" &&
+      /^modal-[a-z-]+$/.test(overlay.id) &&
+      !["modal-suggestions", "modal-suggestion-detail"].includes(overlay.id) &&
+      document.getElementById(overlay.id)?.classList.contains("modal-backdrop")
+    ) {
+      return { type: "modal", id: overlay.id };
+    }
+    return null;
+  }
+
+  function notifySuggestionPreviewRoute() {
+    if (!isFeedbackPreview || window.parent === window) return;
+    window.parent.postMessage(
+      {
+        type: "suggestion-preview-route",
+        route: ui.route,
+        routeId: getCurrentRouteId() || "",
+        overlay: getSuggestionPreviewOverlay()
+      },
+      window.location.origin
+    );
+  }
+
   function captureCurrentScreen() {
     return {
       route: ui.route,
@@ -1569,6 +1342,7 @@ import {
   }
 
   function persistNavigationHistory() {
+    if (isFeedbackPreview) return;
     sessionStorage.setItem("eram-app-back-history", JSON.stringify(navigationHistory.slice(-30)));
   }
 
@@ -1582,6 +1356,7 @@ import {
   }
 
   function saveActiveViewState() {
+    if (isFeedbackPreview) return;
     const routeId = getCurrentRouteId();
     sessionStorage.setItem("eram-active-route", ui.route);
     sessionStorage.setItem("eram-active-route-id", routeId || "");
@@ -1610,7 +1385,8 @@ import {
   // =========================================================================
   function getCurrentUser() {
     return (
-      state.students.find((s) => s.id === state.currentUserId) || {
+      state.students.find((s) => s.id === state.currentUserId) ||
+      state.currentUserProfile || {
         id: state.currentUserId || auth.currentUser?.uid || "guest",
         name: auth.currentUser?.email?.split("@")[0] || "Estudiant ERAM",
         email: auth.currentUser?.email || "",
@@ -1738,6 +1514,7 @@ import {
   }
 
   async function awardFirstOwnProfileVisit(userId) {
+    if (isFeedbackPreview) return;
     const action = "first-own-profile-open";
     const description = "Primera visita al teu perfil";
     const entryId = `${action}-${encodeURIComponent(userId)}`;
@@ -1880,6 +1657,10 @@ import {
     payloadId = null,
     { restore = false, skipHistory = false, scrollX = savedScrollX, scrollY = savedScrollY } = {}
   ) {
+    if (route === "suggestions" && !isSuggestionManager()) {
+      route = "discover";
+      payloadId = null;
+    }
     const currentRouteId = getCurrentRouteId();
     const targetRouteId =
       route === "project"
@@ -1898,7 +1679,7 @@ import {
     ui.route = route;
     document.querySelector(".top-nav")?.classList.toggle(
       "search-hidden",
-      route === "leaderboard" || route === "messages" || route === "profile"
+      route === "leaderboard" || route === "messages" || route === "suggestions" || route === "profile"
     );
     if (route === "discover" && !restore) resetDiscoveryFilters();
     if (restore) restoreSavedViewControls();
@@ -1918,8 +1699,10 @@ import {
       route === "profile" ? ui.activeProfileId :
       route === "messages" ? ui.activeConversationId :
       "";
-    sessionStorage.setItem("eram-active-route", route);
-    sessionStorage.setItem("eram-active-route-id", routeId || "");
+    if (!isFeedbackPreview) {
+      sessionStorage.setItem("eram-active-route", route);
+      sessionStorage.setItem("eram-active-route-id", routeId || "");
+    }
 
     document.querySelectorAll(".nav-icon-btn").forEach((btn) => {
       btn.classList.toggle("active", btn.dataset.route === route);
@@ -1936,6 +1719,7 @@ import {
     if (route === "project") renderProjectDetailView();
     if (route === "positions") renderPositionsView();
     if (route === "messages") renderMessagesView();
+    if (route === "suggestions") renderSuggestionsView();
     if (route === "profile") renderProfileView();
     if (route === "leaderboard") renderLeaderboardView();
     if (restore) {
@@ -1944,6 +1728,7 @@ import {
     }
     updateBackButton();
     persistNavigationHistory();
+    notifySuggestionPreviewRoute();
   }
 
   // =========================================================================
@@ -3573,6 +3358,141 @@ import {
   // =========================================================================
   // 10. PERFIL D'ESTUDIANT I RÀNQUING
   // =========================================================================
+  function getSuggestionTimestamp(suggestion) {
+    const createdAt = suggestion.createdAt;
+    if (createdAt && typeof createdAt.toMillis === "function") return createdAt.toMillis();
+    if (createdAt && typeof createdAt.toDate === "function") return createdAt.toDate().getTime();
+    const timestamp = new Date(createdAt || "").getTime();
+    return Number.isFinite(timestamp) ? timestamp : 0;
+  }
+
+  function getSuggestionScreenshot(suggestion) {
+    const source = suggestion.screenshot;
+    if (typeof source !== "string") return "";
+    if (/^data:image\/(?:jpeg|png);base64,/i.test(source)) return source;
+    try {
+      const url = new URL(source);
+      return url.protocol === "https:" && url.hostname === "firebasestorage.googleapis.com"
+        ? source
+        : "";
+    } catch {
+      return "";
+    }
+  }
+
+  function openSuggestionDetail(suggestionId) {
+    if (!isSuggestionManager()) return;
+    const suggestion = state.suggestions.find((entry) => entry.id === suggestionId);
+    if (!suggestion) return;
+
+    const author = state.students.find((student) => student.id === suggestion.userId)?.name || "Usuari desconegut";
+    const timestamp = getSuggestionTimestamp(suggestion);
+    const dateLabel = timestamp
+      ? new Intl.DateTimeFormat("ca-ES", { dateStyle: "medium", timeStyle: "short" }).format(new Date(timestamp))
+      : "Data no disponible";
+    const referencePath = typeof suggestion.reference?.path === "string"
+      ? suggestion.reference.path
+      : "";
+    const screenshot = getSuggestionScreenshot(suggestion);
+    document.getElementById("suggestion-detail-title").textContent = `Suggeriment de ${author}`;
+    document.getElementById("suggestion-detail-content").innerHTML = `
+      <div class="suggestion-detail-meta">
+        <strong>${escapeHtml(author)}</strong> · <time>${escapeHtml(dateLabel)}</time>
+        ${referencePath ? `<div class="suggestion-card-path">${escapeHtml(referencePath)}</div>` : ""}
+      </div>
+      <p class="suggestion-detail-message">${escapeHtml(suggestion.message || "")}</p>
+      ${screenshot ? `<img class="suggestion-detail-image" src="${escapeHtml(screenshot)}" alt="Captura de pantalla adjunta al suggeriment de ${escapeHtml(author)}" />` : ""}
+    `;
+    openModal("modal-suggestion-detail");
+  }
+
+  function renderSuggestionsView() {
+    if (!isSuggestionManager()) {
+      document.getElementById("suggestions-list").innerHTML = "";
+      return;
+    }
+
+    const container = document.getElementById("suggestions-list");
+    const pageFilter = document.getElementById("suggestions-filter-page");
+    const authorFilter = document.getElementById("suggestions-filter-author");
+    const selectedPage = pageFilter.value;
+    const selectedAuthor = authorFilter.value;
+    const pages = [...new Set(
+      state.suggestions
+        .map((suggestion) => suggestion.reference?.path)
+        .filter((path) => typeof path === "string" && path)
+    )].sort((a, b) => a.localeCompare(b, "ca"));
+    const authors = [...new Set(
+      state.suggestions.map((suggestion) => suggestion.userId).filter(Boolean)
+    )].map((userId) => ({
+      id: userId,
+      name: state.students.find((student) => student.id === userId)?.name || "Usuari desconegut"
+    })).sort((a, b) => a.name.localeCompare(b.name, "ca"));
+
+    pageFilter.innerHTML = `<option value="">Totes les pàgines</option>${pages
+      .map((path) => `<option value="${escapeHtml(path)}">${escapeHtml(path)}</option>`)
+      .join("")}`;
+    authorFilter.innerHTML = `<option value="">Tots els usuaris</option>${authors
+      .map((author) => `<option value="${escapeHtml(author.id)}">${escapeHtml(author.name)}</option>`)
+      .join("")}`;
+    if (pages.includes(selectedPage)) pageFilter.value = selectedPage;
+    if (authors.some((author) => author.id === selectedAuthor)) authorFilter.value = selectedAuthor;
+
+    if (state.suggestionsError) {
+      container.innerHTML = `<div class="suggestions-list-state" role="alert">${escapeHtml(state.suggestionsError)}</div>`;
+      return;
+    }
+    if (!state.suggestionsLoaded) {
+      container.innerHTML = `<div class="suggestions-list-state">Carregant suggeriments...</div>`;
+      return;
+    }
+
+    const selectedOrder = document.getElementById("suggestions-filter-order").value;
+    const suggestions = state.suggestions
+      .filter((suggestion) => !pageFilter.value || suggestion.reference?.path === pageFilter.value)
+      .filter((suggestion) => !authorFilter.value || suggestion.userId === authorFilter.value)
+      .sort((a, b) => {
+        const difference = getSuggestionTimestamp(a) - getSuggestionTimestamp(b);
+        return selectedOrder === "oldest" ? difference : -difference;
+      });
+
+    if (!suggestions.length) {
+      container.innerHTML = `<div class="suggestions-list-state">No hi ha suggeriments amb aquests filtres.</div>`;
+      return;
+    }
+
+    const dateFormatter = new Intl.DateTimeFormat("ca-ES", {
+      dateStyle: "medium",
+      timeStyle: "short"
+    });
+    container.innerHTML = suggestions.map((suggestion) => {
+      const author = state.students.find((student) => student.id === suggestion.userId)?.name || "Usuari desconegut";
+      const timestamp = getSuggestionTimestamp(suggestion);
+      const dateLabel = timestamp
+        ? dateFormatter.format(new Date(timestamp))
+        : "Data no disponible";
+      const referencePath = typeof suggestion.reference?.path === "string"
+        ? suggestion.reference.path
+        : "";
+      const screenshot = getSuggestionScreenshot(suggestion);
+      return `
+        <article class="suggestion-card">
+          <button type="button" class="suggestion-card-open" data-open-suggestion="${escapeHtml(suggestion.id)}" aria-label="Obrir suggeriment de ${escapeHtml(author)}">
+            <span>
+              <span class="suggestion-card-header">
+                <strong class="suggestion-card-author">${escapeHtml(author)}</strong>
+                <time class="suggestion-card-date" datetime="${timestamp ? new Date(timestamp).toISOString() : ""}">${escapeHtml(dateLabel)}</time>
+              </span>
+              ${referencePath ? `<span class="suggestion-card-path">${escapeHtml(referencePath)}</span>` : ""}
+              <span class="suggestion-card-message">${escapeHtml(suggestion.message || "")}</span>
+            </span>
+            ${screenshot ? `<img class="suggestion-card-thumbnail" src="${escapeHtml(screenshot)}" alt="" loading="lazy" />` : ""}
+          </button>
+        </article>
+      `;
+    }).join("");
+  }
+
   function renderProfileView() {
     const container = document.getElementById("view-profile");
     const student = getStudentById(ui.activeProfileId || state.currentUserId);
@@ -3936,6 +3856,7 @@ import {
         });
       });
     }
+    syncSuggestionAccess();
   }
 
   function closeAllPopovers() {
@@ -4004,12 +3925,24 @@ import {
     if (isHidden) {
       menu.classList.remove("hidden");
       menu.dataset.popoverTriggerId = triggerId;
+      ensurePopoverSuggestionButton(menu);
       trigger.setAttribute("aria-expanded", "true");
       if (underlay) {
         positionPopoverUnderlay();
         underlay.classList.remove("hidden");
       }
     }
+    notifySuggestionPreviewRoute();
+  }
+
+  function ensurePopoverSuggestionButton(menu) {
+    if (menu.id === "platform-dropdown" || menu.querySelector(".popover-suggestion-item")) return;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "popover-item popover-suggestion-item";
+    button.textContent = "Fer un suggeriment sobre aquest menú";
+    button.addEventListener("click", () => openSuggestionsModal({ type: "popover", id: menu.id }));
+    menu.append(button);
   }
 
   function openModal(modalId) {
@@ -4019,11 +3952,14 @@ import {
     const activeModal = document.querySelector(".modal-backdrop:not(.hidden)");
     if (activeModal && activeModal.id !== modalId) modalBackHistory.push(activeModal.id);
     ensureModalBackButton(modal);
+    ensureModalSuggestionButton(modal);
     modal.classList.remove("hidden");
     updateBackButton();
+    notifySuggestionPreviewRoute();
   }
 
   function ensureModalBackButton(modal) {
+    if (modal.id === "modal-suggestions") return;
     const header = modal.querySelector(".modal-header, .create-modal-header");
     if (!header || header.querySelector(".modal-back-btn")) return;
     const button = document.createElement("button");
@@ -4039,6 +3975,29 @@ import {
       </svg>
     `;
     header.insertBefore(button, header.firstChild);
+  }
+
+  function ensureModalSuggestionButton(modal) {
+    if (
+      ["modal-suggestions", "modal-suggestion-detail"].includes(modal.id)
+    ) {
+      return;
+    }
+    const header = modal.querySelector(".modal-header, .create-modal-header");
+    if (!header || header.querySelector(".modal-suggestion-btn")) return;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "modal-suggestion-btn";
+    button.setAttribute("aria-label", "Fer un suggeriment sobre aquesta pantalla");
+    button.title = "Fer un suggeriment sobre aquesta pantalla";
+    button.innerHTML = `
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8A8.5 8.5 0 0 1 12.5 3h.5a8.5 8.5 0 0 1 8 8v.5Z" />
+        <path d="M8 12h8M8 15h5" />
+      </svg>
+    `;
+    button.addEventListener("click", () => openSuggestionsModal(getSuggestionPreviewOverlay()));
+    header.insertBefore(button, header.querySelector(".modal-close-btn") || null);
   }
 
   function openLevelsModal(student) {
@@ -4141,6 +4100,537 @@ import {
       </div>
     `;
     openModal("modal-subject");
+  }
+
+  function makeSuggestionReference(route, routeId, overlay = null) {
+    const routePath = {
+      discover: "projectes",
+      project: "projectes",
+      positions: "posicions",
+      messages: "missatges",
+      profile: "perfils",
+      leaderboard: "rànquing"
+    }[route] || "projectes";
+    const pathId = ["project", "profile"].includes(route) && routeId
+      ? `/${encodeURIComponent(routeId)}`
+      : "";
+    const normalizedOverlay = normalizeSuggestionOverlay(overlay);
+    let overlayPath = "";
+    if (normalizedOverlay?.type === "about") overlayPath = "about-us";
+    else if (normalizedOverlay?.type === "project-wizard") {
+      overlayPath = `projectes/crear/pas-${normalizedOverlay.stepId}`;
+    } else if (normalizedOverlay?.type === "profile-edit") overlayPath = "perfils/editar";
+    else if (normalizedOverlay?.type === "subject") {
+      overlayPath = `assignatures/${encodeURIComponent(normalizedOverlay.subject)}`;
+    } else if (normalizedOverlay?.type === "create-menu") overlayPath = "menús/crear";
+    else if (normalizedOverlay?.type === "popover") {
+      overlayPath = `menús/${normalizedOverlay.id.replace("-dropdown", "")}`;
+    } else if (normalizedOverlay?.type === "modal") {
+      overlayPath = `finestres/${normalizedOverlay.id.replace(/^modal-/, "")}`;
+    }
+    return {
+      route,
+      routeId: routeId || "",
+      path: `Intreramers/${overlayPath || `${routePath}${pathId}`}`,
+      overlay: normalizedOverlay
+    };
+  }
+
+  function getSuggestionPreviewUrl(reference) {
+    const url = new URL(window.location.pathname, window.location.origin);
+    url.searchParams.set("feedback-preview", "1");
+    url.searchParams.set("feedback-route", reference.route);
+    if (reference.routeId) url.searchParams.set("feedback-route-id", reference.routeId);
+    if (reference.overlay) url.searchParams.set("feedback-overlay", JSON.stringify(reference.overlay));
+    return url.toString();
+  }
+
+  function isSuggestionPreviewRatioAltered() {
+    const originalRatioToggle = document.getElementById("suggestion-original-ratio");
+    const frameWidth = originalRatioToggle.checked
+      ? suggestionPreviewOriginalSize.width
+      : window.innerWidth;
+    const frameHeight = originalRatioToggle.checked
+      ? suggestionPreviewOriginalSize.height
+      : window.innerHeight;
+    const originalRatio =
+      suggestionPreviewOriginalSize.width / suggestionPreviewOriginalSize.height;
+    return Math.abs(frameWidth / frameHeight - originalRatio) > 0.01;
+  }
+
+  function fitSuggestionPreview() {
+    const container = document.querySelector(".suggestion-replica");
+    const frame = document.getElementById("suggestion-preview-frame");
+    const originalRatioToggle = document.getElementById("suggestion-original-ratio");
+    const originalRatioOption = document.getElementById("suggestion-original-ratio-option");
+    const infoTooltip = document.getElementById("suggestion-preview-info-tooltip");
+    const frameWidth = originalRatioToggle.checked
+      ? suggestionPreviewOriginalSize.width
+      : window.innerWidth;
+    const frameHeight = originalRatioToggle.checked
+      ? suggestionPreviewOriginalSize.height
+      : window.innerHeight;
+    if (!frameWidth || !frameHeight || !container.clientHeight) return;
+
+    container.style.width = "";
+    container.style.marginInline = "";
+    container.style.height = "";
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+    const fitScale = Math.min(1, containerWidth / frameWidth, containerHeight / frameHeight);
+    const scale = fitScale * suggestionPreviewZoom;
+    suggestionPreviewScale = scale;
+    frame.style.width = `${frameWidth}px`;
+    frame.style.height = `${frameHeight}px`;
+    frame.style.transform = `scale(${scale})`;
+    frame.style.left = `${(containerWidth - frameWidth * scale) / 2}px`;
+    frame.style.top = `${(containerHeight - frameHeight * scale) / 2}px`;
+
+    const originalRatio =
+      suggestionPreviewOriginalSize.width / suggestionPreviewOriginalSize.height;
+    const responsiveRatioIsAltered =
+      Math.abs(window.innerWidth / window.innerHeight - originalRatio) > 0.01;
+    const previewRatioIsAltered = isSuggestionPreviewRatioAltered();
+    originalRatioOption.hidden = !responsiveRatioIsAltered && !originalRatioToggle.checked;
+    const popupOnlyCapture =
+      activeSuggestionReference?.overlay &&
+      !document.getElementById("suggestion-full-page").checked;
+    const captureDescription = popupOnlyCapture
+      ? "En enviar, s'adjuntarà només la captura del popup. Activa «Veure tota la pàgina» per incloure el fons."
+      : "En enviar, s'adjuntarà una captura de la pàgina seleccionada.";
+    infoTooltip.textContent = previewRatioIsAltered
+      ? `Desplaça amb dos dits o arrossega per navegar; fes pinça per ampliar o reduir. ${captureDescription}`
+      : `Desplaça amb dos dits o arrossega per navegar. ${captureDescription}`;
+  }
+
+  function setSuggestionReference(reference) {
+    activeSuggestionReference = reference;
+  }
+
+  function clearSuggestionPreview() {
+    document.getElementById("suggestion-preview-frame").src = "about:blank";
+    activeSuggestionReference = null;
+  }
+
+  function openSuggestionsModal(overlay = getSuggestionPreviewOverlay()) {
+    const form = document.getElementById("suggestion-form");
+    form.reset();
+    document.getElementById("suggestion-error").classList.add("hidden");
+    suggestionPreviewZoom = 1;
+    const reference = makeSuggestionReference(ui.route, getCurrentRouteId(), overlay);
+    setSuggestionReference(reference);
+    document.getElementById("suggestion-full-page-option").hidden = !reference.overlay;
+    document.getElementById("suggestion-reference").hidden = false;
+    document.getElementById("suggestion-preview-frame").src = getSuggestionPreviewUrl(reference);
+    openModal("modal-suggestions");
+    requestAnimationFrame(fitSuggestionPreview);
+  }
+
+  let html2CanvasLoader = null;
+  async function captureSuggestionPreview() {
+    const frame = document.getElementById("suggestion-preview-frame");
+    const previewWindow = frame.contentWindow;
+    const previewDocument = frame.contentDocument;
+    if (!previewWindow || !previewDocument?.documentElement || previewDocument.readyState !== "complete") {
+      throw new Error("La rèplica encara no està preparada per capturar-la.");
+    }
+
+    html2CanvasLoader ||= import("https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/+esm")
+      .then((module) => module.default)
+      .catch((error) => {
+        html2CanvasLoader = null;
+        throw error;
+      });
+    const html2canvas = await html2CanvasLoader;
+      const showFullPage = document.getElementById("suggestion-full-page").checked;
+      const overlay = activeSuggestionReference?.overlay;
+      const overlayElementIdByType = {
+        about: "modal-subject",
+        subject: "modal-subject",
+        "project-wizard": "modal-publish-project",
+        "profile-edit": "modal-edit-profile",
+        "create-menu": "modal-create"
+      };
+      const overlayElementId = overlayElementIdByType[overlay?.type] || overlay?.id;
+      const overlayTarget = overlay && !showFullPage
+        ? overlay.type === "popover"
+          ? previewDocument.getElementById(overlay.id)
+          : previewDocument.getElementById(overlayElementId)?.querySelector(".modal-card, .create-modal-card")
+        : null;
+      if (overlay && !showFullPage && !overlayTarget) {
+        throw new Error("No s'ha trobat el popup seleccionat a la rèplica.");
+      }
+      const captureTarget = overlayTarget || previewDocument.documentElement;
+      const bounds = overlayTarget?.getBoundingClientRect();
+      const width = Math.round(bounds?.width || previewWindow.innerWidth);
+      const height = Math.round(bounds?.height || previewWindow.innerHeight);
+    if (!width || !height) throw new Error("La rèplica no té una mida vàlida.");
+    const scale = Math.min(1, 1280 / width, 720 / height);
+      const canvas = await html2canvas(captureTarget, {
+      allowTaint: false,
+      backgroundColor: "#ffffff",
+      height,
+      imageTimeout: 4000,
+      logging: false,
+      scale,
+      useCORS: true,
+      width,
+        windowHeight: previewWindow.innerHeight,
+        windowWidth: previewWindow.innerWidth,
+        ...(overlayTarget ? {} : { x: previewWindow.scrollX, y: previewWindow.scrollY })
+    });
+    return canvas.toDataURL("image/jpeg", 0.76);
+  }
+
+  function initializeSuggestionBox() {
+    const form = document.getElementById("suggestion-form");
+    const textOnlyToggle = document.getElementById("suggestion-text-only");
+      const fullPageToggle = document.getElementById("suggestion-full-page");
+      const fullPageOption = document.getElementById("suggestion-full-page-option");
+    const originalRatioToggle = document.getElementById("suggestion-original-ratio");
+    const referenceSection = document.getElementById("suggestion-reference");
+    const previewFrame = document.getElementById("suggestion-preview-frame");
+    const previewContainer = document.querySelector(".suggestion-replica");
+    const errorElement = document.getElementById("suggestion-error");
+    const submitButton = document.getElementById("suggestion-submit");
+    let gestureZoomStart = 1;
+    let previewDrag = null;
+    let suppressPreviewClick = false;
+    const findPreviewScrollTarget = (previewWindow, target) => {
+      const previewDocument = previewWindow.document;
+      const root = previewDocument.documentElement;
+      let scrollTarget =
+        target instanceof previewWindow.Element ? target : null;
+      while (scrollTarget && scrollTarget !== root) {
+        const style = previewWindow.getComputedStyle(scrollTarget);
+        const canScroll =
+          /(auto|scroll)/.test(`${style.overflowX} ${style.overflowY}`) &&
+          (scrollTarget.scrollHeight > scrollTarget.clientHeight ||
+            scrollTarget.scrollWidth > scrollTarget.clientWidth);
+        if (canScroll) break;
+        scrollTarget = scrollTarget.parentElement;
+      }
+      return scrollTarget || previewDocument.scrollingElement || root;
+    };
+    const scrollPreview = (previewWindow, target, deltaX, deltaY) => {
+      const scrollTarget = findPreviewScrollTarget(previewWindow, target);
+      scrollTarget.scrollLeft += deltaX;
+      scrollTarget.scrollTop += deltaY;
+    };
+    const zoomPreview = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!isSuggestionPreviewRatioAltered()) return;
+      suggestionPreviewZoom = Math.max(
+        0.5,
+        Math.min(3, suggestionPreviewZoom * Math.exp(-event.deltaY * 0.002))
+      );
+      fitSuggestionPreview();
+    };
+    const handlePreviewWheel = (event) => {
+      if (event.ctrlKey || event.metaKey) zoomPreview(event);
+    };
+    const handleDisplayWheel = (event) => {
+      const frameRect = previewFrame.getBoundingClientRect();
+      const pointerOverFrame =
+        event.target === previewFrame ||
+        (event.clientX >= frameRect.left &&
+          event.clientX <= frameRect.right &&
+          event.clientY >= frameRect.top &&
+          event.clientY <= frameRect.bottom);
+      if (pointerOverFrame) return;
+      if (event.ctrlKey || event.metaKey) {
+        zoomPreview(event);
+        return;
+      }
+
+      event.preventDefault();
+      const previewWindow = previewFrame.contentWindow;
+      const deltaMultiplier =
+        event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? previewWindow.innerHeight : 1;
+      const displayScale = Math.max(suggestionPreviewScale, 0.01);
+      scrollPreview(
+        previewWindow,
+        null,
+        (event.deltaX * deltaMultiplier) / displayScale,
+        (event.deltaY * deltaMultiplier) / displayScale
+      );
+    };
+
+    const attachPreviewInteractions = () => {
+      const previewWindow = previewFrame.contentWindow;
+      const previewDocument = previewWindow.document;
+      const root = previewDocument.documentElement;
+      if (root.dataset.suggestionInteractionsAttached === "true") return;
+      root.dataset.suggestionInteractionsAttached = "true";
+      const cursorStyle = previewDocument.createElement("style");
+      cursorStyle.textContent = "html, body { cursor: grab; }";
+      previewDocument.head.append(cursorStyle);
+      previewDocument.addEventListener("wheel", handlePreviewWheel, { capture: true, passive: false });
+      previewDocument.addEventListener(
+        "gesturestart",
+        (event) => {
+          event.preventDefault();
+          if (!isSuggestionPreviewRatioAltered()) return;
+          gestureZoomStart = suggestionPreviewZoom;
+        },
+        { passive: false }
+      );
+      previewDocument.addEventListener(
+        "gesturechange",
+        (event) => {
+          event.preventDefault();
+          if (!isSuggestionPreviewRatioAltered()) return;
+          suggestionPreviewZoom = Math.max(
+            0.5,
+            Math.min(3, gestureZoomStart * event.scale)
+          );
+          fitSuggestionPreview();
+        },
+        { passive: false }
+      );
+      previewDocument.addEventListener(
+        "pointerdown",
+        (event) => {
+          if (event.button !== 0 || event.isPrimary === false) return;
+          previewDrag = {
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            startY: event.clientY,
+            lastX: event.clientX,
+            lastY: event.clientY,
+            moved: false,
+            scrollTarget: findPreviewScrollTarget(previewWindow, event.target)
+          };
+          if (event.target instanceof previewWindow.Element) {
+            event.target.setPointerCapture?.(event.pointerId);
+          }
+        },
+        { capture: true }
+      );
+      previewDocument.addEventListener(
+        "pointermove",
+        (event) => {
+          if (!previewDrag || event.pointerId !== previewDrag.pointerId) return;
+          const deltaX = event.clientX - previewDrag.lastX;
+          const deltaY = event.clientY - previewDrag.lastY;
+          previewDrag.lastX = event.clientX;
+          previewDrag.lastY = event.clientY;
+          if (
+            !previewDrag.moved &&
+            Math.hypot(event.clientX - previewDrag.startX, event.clientY - previewDrag.startY) > 4
+          ) {
+            previewDrag.moved = true;
+          }
+          if (!previewDrag.moved) return;
+          event.preventDefault();
+          event.stopPropagation();
+          previewDrag.scrollTarget.scrollLeft -= deltaX;
+          previewDrag.scrollTarget.scrollTop -= deltaY;
+          root.style.cursor = "grabbing";
+        },
+        { capture: true, passive: false }
+      );
+      const endPreviewDrag = () => {
+        if (previewDrag?.moved) {
+          suppressPreviewClick = true;
+          setTimeout(() => {
+            suppressPreviewClick = false;
+          }, 0);
+        }
+        previewDrag = null;
+        root.style.cursor = "";
+      };
+      previewDocument.addEventListener("pointerup", endPreviewDrag, { capture: true });
+      previewDocument.addEventListener("pointercancel", endPreviewDrag, { capture: true });
+      previewDocument.addEventListener(
+        "click",
+        (event) => {
+          if (!suppressPreviewClick) return;
+          suppressPreviewClick = false;
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        },
+        { capture: true }
+      );
+    };
+
+    textOnlyToggle.addEventListener("change", () => {
+      referenceSection.hidden = textOnlyToggle.checked;
+      if (textOnlyToggle.checked) {
+        previewFrame.src = "about:blank";
+      } else if (activeSuggestionReference) {
+        previewFrame.src = getSuggestionPreviewUrl(activeSuggestionReference);
+        requestAnimationFrame(fitSuggestionPreview);
+      }
+    });
+    originalRatioToggle.addEventListener("change", () => {
+      if (originalRatioToggle.checked) suggestionPreviewZoom = 1;
+      fitSuggestionPreview();
+    });
+    fullPageToggle.addEventListener("change", fitSuggestionPreview);
+    previewContainer.addEventListener("wheel", handleDisplayWheel, { passive: false });
+    previewFrame.addEventListener("load", attachPreviewInteractions);
+    window.addEventListener("resize", fitSuggestionPreview);
+    document.addEventListener("fullscreenchange", fitSuggestionPreview);
+
+    window.addEventListener("message", (event) => {
+      if (
+        event.origin !== window.location.origin ||
+        event.source !== previewFrame.contentWindow ||
+        event.data?.type !== "suggestion-preview-route" ||
+        !validRoutes.has(event.data.route) ||
+        document.getElementById("modal-suggestions").classList.contains("hidden")
+      ) {
+        return;
+      }
+      const previousOverlay = activeSuggestionReference?.overlay || null;
+      const reference = makeSuggestionReference(
+        event.data.route,
+        event.data.routeId,
+        normalizeSuggestionOverlay(event.data.overlay)
+      );
+      if (JSON.stringify(previousOverlay) !== JSON.stringify(reference.overlay)) {
+        fullPageToggle.checked = false;
+      }
+      fullPageOption.hidden = !reference.overlay;
+      setSuggestionReference(reference);
+      requestAnimationFrame(fitSuggestionPreview);
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const message = document.getElementById("suggestion-message").value.trim();
+      if (!message) {
+        errorElement.textContent = "Escriu el suggeriment abans d'enviar-lo.";
+        errorElement.classList.remove("hidden");
+        return;
+      }
+      const userId = state.currentUserId || auth.currentUser?.uid;
+      if (!userId) {
+        errorElement.textContent = "Has d'iniciar sessió per enviar un suggeriment.";
+        errorElement.classList.remove("hidden");
+        return;
+      }
+
+      const reference = textOnlyToggle.checked ? null : activeSuggestionReference;
+      submitButton.disabled = true;
+      errorElement.classList.add("hidden");
+      try {
+        let screenshot = null;
+        if (reference) {
+          try {
+            const screenshotData = await captureSuggestionPreview();
+            screenshot = await uploadDataUrlIfNeeded(screenshotData, "suggestion-screenshots");
+          } catch (error) {
+            console.error("No s'ha pogut capturar la pàgina del suggeriment:", error);
+            errorElement.textContent =
+              "No s'ha pogut crear la captura de la pàgina. Torna-ho a provar o selecciona l'opció d'enviar només el text.";
+            errorElement.classList.remove("hidden");
+            return;
+          }
+        }
+        await setDoc(doc(collection(db, "suggestions")), {
+          userId,
+          message,
+          screenshot,
+          reference: reference
+            ? {
+                path: reference.path,
+                route: reference.route,
+                routeId: reference.routeId,
+                overlay: reference.overlay,
+                showFullPage: reference.overlay ? fullPageToggle.checked : false
+              }
+            : null,
+          createdAt: serverTimestamp()
+        });
+        form.reset();
+        closeModal("modal-suggestions");
+        showToast("Gràcies pel teu suggeriment!");
+      } catch (error) {
+        console.error("No s'ha pogut desar el suggeriment:", error);
+        errorElement.textContent = "No s'ha pogut enviar el suggeriment. Torna-ho a provar.";
+        errorElement.classList.remove("hidden");
+      } finally {
+        submitButton.disabled = false;
+      }
+    });
+  }
+
+  function initializeSuggestionPreviewMode() {
+    if (!isFeedbackPreview) return;
+    document.addEventListener("click", (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const navigationElement = target?.closest(
+        "[data-route], [data-open-project], [data-open-profile], [data-open-profile-name]"
+      );
+      const interactiveElement = target?.closest("button, a, input, select, textarea, [role='button']");
+      const forbiddenAction = interactiveElement?.matches(
+        "[data-action='open-suggestions'], [data-route='suggestions'], #logout-btn, button[type='submit'], input[type='submit'], input[type='image']"
+      );
+      const safeControl = target?.closest(
+        "#platform-menu-trigger, #create-menu-trigger, #notif-menu-trigger, #profile-menu-trigger, #open-profile-edit, #proj-wizard-next, #proj-wizard-back, [data-action='open-about'], [data-action='open-publish-project'], [data-close-modal], [data-app-back]"
+      );
+      const editablePreviewForm = target?.closest("#modal-publish-project");
+      if (
+        !forbiddenAction &&
+        ((navigationElement && (!interactiveElement || interactiveElement === navigationElement)) ||
+          safeControl ||
+          (editablePreviewForm && interactiveElement))
+      ) {
+        return;
+      }
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }, true);
+    document.addEventListener("submit", (event) => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }, true);
+  }
+
+  function restoreSuggestionPreviewOverlay() {
+    if (!isFeedbackPreview) return;
+    const overlayText = previewParams.get("feedback-overlay");
+    if (!overlayText) return;
+
+    let overlay;
+    try {
+      overlay = normalizeSuggestionOverlay(JSON.parse(overlayText));
+    } catch (error) {
+      console.warn("S'ha ignorat el popup de referència perquè no té un format vàlid.", error);
+      return;
+    }
+    if (!overlay) return;
+
+    if (overlay.type === "about") {
+      openAboutModal();
+    } else if (overlay.type === "subject") {
+      openSubjectModal(overlay.subject);
+    } else if (overlay.type === "project-wizard") {
+      openNewProjectModal();
+      if (overlay.seekingCollaborator) {
+        document.getElementById("proj-team-type").value = "group";
+        document.getElementById("proj-seeking-collaborator").checked = true;
+        syncProjectTeamFields();
+      }
+      const stepIndex = getProjectWizardSteps().findIndex((step) => step.id === overlay.stepId) + 1;
+      setProjectWizardStep(stepIndex > 0 ? stepIndex : 1);
+    } else if (overlay.type === "profile-edit") {
+      openEditProfileModal(getCurrentUser());
+    } else if (overlay.type === "create-menu") {
+      openModal("modal-create");
+    } else if (overlay.type === "popover") {
+      const triggerByMenu = {
+        "platform-dropdown": "platform-menu-trigger",
+        "notif-dropdown": "notif-menu-trigger",
+        "profile-dropdown": "profile-menu-trigger"
+      };
+      togglePopover(overlay.id, triggerByMenu[overlay.id]);
+    } else if (overlay.type === "modal") {
+      openModal(overlay.id);
+    }
   }
 
   const PROJECT_PARTICIPANT_ROLES = [
@@ -4414,21 +4904,17 @@ import {
     openModal("modal-edit-profile");
   }
 
-  function openSettingsModal() {
-    const languageSelect = document.getElementById("language-select");
-    if (languageSelect) languageSelect.value = ui.language;
-    openModal("modal-settings");
-  }
-
   function closeModal(modalId, { keepForBack = false, preserveHistory = false } = {}) {
     const modal = document.getElementById(modalId);
     if (modal) modal.classList.add("hidden");
+    if (modalId === "modal-suggestions") clearSuggestionPreview();
     if (keepForBack) {
       modalBackHistory.push(modalId);
     } else if (!preserveHistory) {
       modalBackHistory.length = 0;
     }
     updateBackButton();
+    notifySuggestionPreviewRoute();
   }
 
   function restoreNavigationEntry(entry) {
@@ -4467,6 +4953,10 @@ import {
   function handleAppBack() {
     const activeModal = [...document.querySelectorAll(".modal-backdrop:not(.hidden)")].at(-1);
     if (activeModal) {
+      if (activeModal.id === "modal-suggestions") {
+        updateBackButton();
+        return;
+      }
       if (activeModal.id === "modal-publish-project" && projectWizardStep > 1) {
         goBackProjectWizardStep();
         return;
@@ -4703,6 +5193,7 @@ import {
             : null,
       { restore: restoreSavedViewOnEntry }
     );
+    restoreSuggestionPreviewOverlay();
   }
 
   function setupAuthFlow() {
@@ -4992,6 +5483,14 @@ import {
       if (btn.dataset.route) btn.addEventListener("click", () => navigateTo(btn.dataset.route));
     });
 
+    [
+      "suggestions-filter-page",
+      "suggestions-filter-author",
+      "suggestions-filter-order"
+    ].forEach((filterId) => {
+      document.getElementById(filterId).addEventListener("change", renderSuggestionsView);
+    });
+
     document.getElementById("platform-menu-trigger").addEventListener("click", (e) => {
       e.stopPropagation();
       togglePopover("platform-dropdown", "platform-menu-trigger");
@@ -5023,6 +5522,7 @@ import {
     document.querySelectorAll("[data-action]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const action = btn.dataset.action;
+        const suggestionOverlay = action === "open-suggestions" ? getSuggestionPreviewOverlay() : null;
         closeAllPopovers();
         const opensNewModal = action === "open-publish-project" || action === "open-publish-position";
         const createModal = document.getElementById("modal-create");
@@ -5040,8 +5540,8 @@ import {
         if (action === "open-about") {
           openAboutModal();
         }
-        if (action === "open-settings") {
-          openSettingsModal();
+        if (action === "open-suggestions") {
+          openSuggestionsModal(suggestionOverlay);
         }
       });
     });
@@ -5643,13 +6143,19 @@ import {
 
     document.querySelectorAll(".modal-backdrop").forEach((backdrop) => {
       backdrop.addEventListener("click", (e) => {
-        if (e.target === backdrop) closeModal(backdrop.id);
+        if (e.target === backdrop && backdrop.id !== "modal-suggestions") closeModal(backdrop.id);
       });
     });
 
     document.addEventListener("click", (e) => {
       const closeModalEl = e.target.closest("[data-close-modal]");
       if (closeModalEl) closeModal(closeModalEl.dataset.closeModal);
+
+      const suggestionCard = e.target.closest("[data-open-suggestion]");
+      if (suggestionCard) {
+        openSuggestionDetail(suggestionCard.dataset.openSuggestion);
+        return;
+      }
 
       const photoBtn = e.target.closest("[data-open-project-photo]");
       if (photoBtn) {
@@ -5696,7 +6202,7 @@ import {
         if (student) {
           navigateTo("profile", student.id);
         } else {
-          showToast(ui.language === "en" ? "This student profile is not available yet." : "Aquest perfil encara no està disponible.");
+          showToast("Aquest perfil encara no està disponible.");
         }
         return;
       }
@@ -5713,7 +6219,10 @@ import {
       }
       if (e.key === "Escape") {
         closeAllPopovers();
-        document.querySelectorAll(".modal-backdrop:not(.hidden)").forEach((modal) => closeModal(modal.id));
+        const activeModals = [...document.querySelectorAll(".modal-backdrop:not(.hidden)")];
+        if (activeModals.at(-1)?.id !== "modal-suggestions") {
+          activeModals.forEach((modal) => closeModal(modal.id));
+        }
       }
     });
     updateBackButton();
@@ -5734,28 +6243,19 @@ import {
   // =========================================================================
   function init() {
     setupAuthFlow();
-    initializeTranslation();
+    initializeSuggestionBox();
+    initializeSuggestionPreviewMode();
     bindEvents();
 
     onAuthStateChanged(auth, async (user) => {
       if (user) {
         state.currentUserId = user.uid;
-        await seedInitialDataIfNeeded();
-        startRealtimeSync();
-
+        if (!isFeedbackPreview) await seedInitialDataIfNeeded();
         const userSnap = await getDoc(doc(db, "students", user.uid));
-        if (userSnap.exists() && (userSnap.data().language === "ca" || userSnap.data().language === "en")) {
-          ui.language = userSnap.data().language;
-          localStorage.setItem("eram-language", ui.language);
-          const languageSelect = document.getElementById("language-select");
-          if (languageSelect) languageSelect.value = ui.language;
-          failedTranslationKeys.clear();
-          translationErrorNotified = false;
-          void translatePageContent();
-        }
-        if (!userSnap.exists()) {
-          const fallbackName = user.displayName || user.email?.split("@")[0] || "Estudiant ERAM";
-          await setDoc(doc(db, "students", user.uid), {
+        const fallbackName = user.displayName || user.email?.split("@")[0] || "Estudiant ERAM";
+        const currentUserProfile = userSnap.exists()
+          ? { ...userSnap.data(), id: user.uid }
+          : {
             id: user.uid,
             name: fallbackName,
             email: user.email || "",
@@ -5764,20 +6264,25 @@ import {
             avatarColor: "#8f7cf6",
             avatar: makeInitialAvatar(fallbackName, "#8f7cf6"),
             bio: "Estudiant a l'ERAM.",
-            language: ui.language,
             interests: [],
             points: 0,
             projectsCount: 0,
             commentsCount: 0,
             usefulCommentsCount: 0,
             secondedCount: 0
-          });
+          };
+        state.currentUserProfile = currentUserProfile;
+        if (!userSnap.exists() && !isFeedbackPreview) {
+          await setDoc(doc(db, "students", user.uid), currentUserProfile);
         }
 
+        startRealtimeSync();
+        syncSuggestionAccess();
         enterApp();
-        void translatePageContent();
       } else {
         state.currentUserId = null;
+        state.currentUserProfile = null;
+        syncSuggestionAccess();
         document.body.classList.remove("authenticated");
         const authPage = document.getElementById("auth-page");
         if (authPage) authPage.classList.remove("hidden");
